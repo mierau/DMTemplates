@@ -321,9 +321,11 @@ DMTemplateBlockType;
 								if(array == nil)
 									continue;
 							
-								// Enumerate over each object in array and build foreach block content against each.
+								// Content within a foreach block is rendered as a template itself.
+								DMTemplateEngine* engine = [DMTemplateEngine engineWithTemplate:blockContent];
+								engine.modifiers = self.modifiers;
 								for(id obj in array) {
-									NSString* builtContent = [[DMTemplateEngine engineWithTemplate:blockContent] renderAgainst:obj];
+									NSString* builtContent = [engine renderAgainst:obj];
 									if(builtContent != nil)
 										[self.renderedTemplate appendString:builtContent];
 								}
