@@ -1,0 +1,15 @@
+Hello <? firstName /> <? lastName />,
+
+Your have <? friends.@count /> friends:
+<? foreach(friends) />
+  - <? description />
+<? endforeach />
+
+Escaped HTML: <?[e] about />
+URL Encoded: <?[u] url />
+<? if(file.fileSize between {0, 100}) />
+File size for <?[e] file.name /> too small!
+<? else />
+File name: <?[e] file.name />
+File size: <?[b] file.fileSize />
+<? endif />

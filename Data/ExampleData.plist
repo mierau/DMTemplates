@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>about</key>
+  <string>My name is &lt;b&gt;Mike&lt;/b&gt;</string>
+  <key>file</key>
+  <dict>
+    <key>fileSize</key>
+    <integer>2345234</integer>
+    <key>name</key>
+    <string>my_picture.jpg</string>
+  </dict>
+  <key>url</key>
+  <string>http://facebook.com/example_asdf?blah[]=23234:234</string>
+  <key>firstName</key>
+  <string>Mike</string>
+  <key>lastName</key>
+  <string>Tacos</string>
+  <key>friends</key>
+  <array>
+    <string>Jill Arnet</string>
+    <string>Bob Blob</string>
+    <string>Sam Bog</string>
+    <string>Trent Wernt</string>
+    <string>Jack Dealy</string>
+  </array>
+</dict>
+</plist>
