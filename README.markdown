@@ -8,7 +8,6 @@ Simply copy the DMTemplateEngine header and source files into your project. They
 
 Overview
 --------
-
 The DMTemplateEngine renders templates against objects using key-value coding and predicates for logic.
 
     NSMutableDictionary* templateData = [NSMutableDictionary dictionary];
@@ -19,11 +18,10 @@ The DMTemplateEngine renders templates against objects using key-value coding an
 
     NSString* output = [engine renderAgainst:templateData];
 
-**Output**: @"Hello, my name is Dustin."
+**Output**: Hello, my name is Dustin.
 
 Logic
 -----
-
 The engine supports some basic logic, like foreach loops and if statements. The conditions specified in each use the exact same syntax as predicates. Check Apple's documentation on key-value coding and NSPredicate syntax for more information.
 
     NSMutableDictionary* templateData = [NSMutableDictionary dictionary];
@@ -32,40 +30,79 @@ The engine supports some basic logic, like foreach loops and if statements. The 
     
     DMTemplateEngine* engine = [DMTemplateEngine engine];
     engine.template = @"Hello, my name is <? firstName />.
+    <? if(friends.@count > 0) />
     I have <? friends.@count /> friends:
     <? foreach(friends) />
       * <? description />
     <? endforeach />";
+    <? else />
+    You have no friends.
+    <? endif />
     
     NSString* output = [engine renderAgainst:templateData];
     
 **Output**:  
-Hello, my name is Dustin.  
-I have 4 friends:  
-* Mary Ann  
-* Garry  
-* Katie  
-* Ollie  
+Hello, my name is Dustin.
+I have 4 friends:
+* Mary Ann
+* Garry
+* Katie
+* Ollie
+
+Foreach
+-------
+The **foreach** operator expects to work with an object that can be enumerated over. Typically, this will be an NSArray. Within a **foreach** block, the scope is limited to the current item in the enumeration. This means you can't access template values beyond what key-values the enumerated item offers you.
 
 Modifiers
 ---------
-
-It can be useful to run a method against a template value before rendering it. For example, you may want to escape some user controlled content. DMTemplates makes this possible through modifiers. The engine has a few useful modifiers built-in, but you can easily add your own.
+It can be quite useful to run a template value through some processing before rendering it. For example, you may want to trim and escape some user generated content. DMTemplates makes this possible through modifiers. The engine has a few useful modifiers built-in, but you can easily add your own.
 
     NSMutableDictionary* templateData = [NSMutableDictionary dictionary];
     [templateData setObject:@"  \nDustin " forKey:@"firstName"];
 
     DMTemplateEngine* engine = [DMTemplateEngine engine];
-    engine.template = @"First name: <?[w] firstName />";
+    engine.template = @"First name is <?[w] firstName />.";
     [engine addModifier:'w' block:^(NSString* content) {
       return [content stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     }];
 
     NSString* output = [engine renderAgainst:templateData];
 
-**Output**: @"First name: Dustin"
+**Output**: First name is Dustin.
 
-License - MIT
+The following modifiers are built-in:
+
+**'e'** - Use this modifier to escape valid XML characters in a template value.
+
+    DMTemplateEngine* engine = [DMTemplateEngine engineWithTemplate:@"Escaped: <?[e] xmlToEscape />"];
+    NSString* output = [engine renderAgainst:[NSDictionary dictionaryWithObject:@"I like <xml> & <html></html>." forKey:@"xmlToEscape"]];
+
+**Output**: Escaped: I like &lt;xml&gt; &amp; &lt;html&gt;&lt;/html&gt;.
+
+**'u'** - Use this modifier to URL encode a template value.
+
+    DMTemplateEngine* engine = [DMTemplateEngine engineWithTemplate:@"Search: http://www.google.com/?s=<?[u] searchQuery /> big."];
+    NSString* output = [engine renderAgainst:[NSDictionary dictionaryWithObject:@"düstin miérau" forKey:@"searchQuery"]];
+
+**Output**: Search: http://www.google.com/?s=d%C3%BCstin%20mi%C3%A9rau
+
+**'b'** - Use this modifier to turn a numeric template value into a human readable byte size.
+
+    DMTemplateEngine* engine = [DMTemplateEngine engineWithTemplate:@"The file size is <?[b] fileSize /> big."];
+    NSString* output = [engine renderAgainst:[NSDictionary dictionaryWithObject:@"23423422" forKey:@"fileSize"]];
+
+**Output**: The file size is 22.3 MB big.
+
+Logging
+-------
+If you find the need to quickly log a template value to the console, you can do so with the **log** method.
+
+    NSDictionary* templateData = [NSDictionary dictionaryWithObject:@"Dustino" forKey:@"name"];
+    [[DMTemplateEngine engineWithTemplate:@"<? log(name) />"] renderAgainst:templateData];
+
+Template values are logged using NSLog and our not rendered to the resulting string.
+
+License (MIT)
 -------------
 
 Copyright (c) 2010 Dustin Mierau
