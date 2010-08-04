@@ -426,9 +426,8 @@ DMTemplateBlockType;
 		// Scan contents up to the first start delimeter we can find
 		if([self.scanner scanUpToString:self.beginProcessorMarker intoString:(returnContent ? &scannedText : nil)]) {
 			// Append scanned content to result if we are not skipping this content
-			if(returnContent) {
+			if(returnContent)
 				[content appendString:scannedText];
-			}
 		}
 
 		// Scan past start delimeter if possible
