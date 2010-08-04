@@ -34,10 +34,10 @@ The engine supports some basic logic, like foreach loops and if statements. The 
     I have <? friends.@count /> friends:
     <? foreach(friends) />
       * <? description />
-    <? endforeach />";
+    <? endforeach />
     <? else />
     You have no friends.
-    <? endif />
+    <? endif />";
     
     NSString* output = [engine renderAgainst:templateData];
     
