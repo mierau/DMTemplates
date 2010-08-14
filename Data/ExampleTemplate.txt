@@ -2,7 +2,7 @@ Hello <? firstName /> <? lastName />,
 
 Your have <? friends.@count /> friends:
 <? foreach(friend in friends) />
-  - <? friend /> (<? friendNumber /> of <? friends.@count />
+  - <? friend /> (<? friendIndex+1 /> of <? friends.@count />)
 <? endforeach />
 
 Escaped HTML: <?[e] about />

@@ -344,7 +344,6 @@ DMTemplateBlockType;
 									// enumeration information.
 									[context setValue:obj forKey:variableName];
 									[context setValue:[NSNumber numberWithUnsignedInteger:i] forKey:[variableName stringByAppendingString:@"Index"]];
-									[context setValue:[NSNumber numberWithUnsignedInteger:i+1] forKey:[variableName stringByAppendingString:@"Number"]];
 									
 									// Render foreach content against the current context.
 									NSString* builtContent = [engine renderAgainst:context];
@@ -367,7 +366,9 @@ DMTemplateBlockType;
 								}
 								else {
 									// Statement (we assume) is a key-value path, find value and log that.
-									NSLog(@"%@", [self.object valueForKeyPath:statementContent]);
+									NSPredicate* predicate = [NSPredicate predicateWithFormat:[NSString stringWithFormat:@"(%@) == 0", statementContent]];
+									NSExpression* expression = [(NSComparisonPredicate*)predicate leftExpression];
+									NSLog(@"%@", [expression expressionValueWithObject:self.object context:nil]);
 								}
 							
 								// Skip over a newline, if necessary.
@@ -380,8 +381,13 @@ DMTemplateBlockType;
 								if(skipContent)
 									continue;
 
-								// Get key value for the specified key path. If a value is found, append it to the result.
-								id keyValue = [self.object valueForKeyPath:tagContent];
+								// Get key value for the specified key path. If a value is found, 
+								// append it to the result. We're also tricking NSPredicate into 
+								// using its built-in math expression parser so we can write math
+								// inline in our template.
+								NSPredicate* predicate = [NSPredicate predicateWithFormat:[NSString stringWithFormat:@"(%@) == 0", tagContent]];
+								NSExpression* expression = [(NSComparisonPredicate*)predicate leftExpression];
+								id keyValue = [expression expressionValueWithObject:self.object context:nil];
 								if(keyValue != nil) {
 									NSString* keyString = [keyValue description];
 									
