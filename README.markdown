@@ -77,7 +77,7 @@ The following modifiers are built-in:
 
 **'u'** - Use this modifier to URL encode a template value.
 
-    DMTemplateEngine* engine = [DMTemplateEngine engineWithTemplate:@"Search: http://www.google.com/?s=<?[u] searchQuery /> big."];
+    DMTemplateEngine* engine = [DMTemplateEngine engineWithTemplate:@"Search: http://www.google.com/?s=<?[u] searchQuery />"];
     NSString* output = [engine renderAgainst:[NSDictionary dictionaryWithObject:@"düstin miérau" forKey:@"searchQuery"]];
 
 **Output**: Search: http://www.google.com/?s=d%C3%BCstin%20mi%C3%A9rau
