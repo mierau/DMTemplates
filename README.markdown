@@ -1,6 +1,10 @@
 DMTemplates
 ===========
-A templating engine for Objective-C.
+An Objective-C templating engine.
+
+Goal
+----
+Yes, there are other templating libraries out there, but they're either too complicated, or too slow, or too limited. The goal of DMTemplates is to create an easy to use (single class, simple interface) templating engine with features enough to handle the cases commonly faced by developers in need of a such a library.
 
 Installation
 ------------
