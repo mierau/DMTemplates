@@ -8,7 +8,7 @@ Simply copy the DMTemplateEngine header and source files into your project. They
 
 Overview
 --------
-The DMTemplateEngine renders templates against objects using key-value coding and predicates for logic.
+The DMTemplateEngine renders templates against objects using key-value expressions and predicates for logic.
 
     NSMutableDictionary* templateData = [NSMutableDictionary dictionary];
     [templateData setObject:@"Dustin" forKey:@"firstName"];
@@ -33,7 +33,7 @@ The engine supports some basic logic, like foreach loops and if statements. The 
     <? if(friends.@count > 0) />
     I have <? friends.@count /> friends:
     <? foreach(friend in friends) />
-      * <? friend />
+      * <? friend /> (<? friendIndex+1 /> of <? friends.@count />)
     <? endforeach />
     <? else />
     You have no friends.
@@ -41,13 +41,13 @@ The engine supports some basic logic, like foreach loops and if statements. The 
     
     NSString* output = [engine renderAgainst:templateData];
     
-**Output**:  
+**Output**  
 Hello, my name is Dustin.  
 I have 4 friends:  
-* Mary Ann  
-* Garry  
-* Katie  
-* Ollie
+* Mary Ann (1 of 4)  
+* Garry (2 of 4)  
+* Katie (3 of 4)  
+* Ollie (4 of 4)
 
 Modifiers
 ---------
