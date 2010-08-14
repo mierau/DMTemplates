@@ -42,6 +42,14 @@ DMTemplateBlockType;
 
 #pragma mark -
 
+@interface DMTemplateContext : NSObject
+@property (nonatomic, assign) id object;
+@property (nonatomic, retain) NSMutableDictionary* dictionary;
++ (id)context;
+@end
+
+#pragma mark -
+
 @interface DMTemplateEngine ()
 @property (nonatomic, assign) id object;
 @property (nonatomic, assign) NSMutableArray* conditionStack;
@@ -52,7 +60,7 @@ DMTemplateBlockType;
 @property (nonatomic, readonly) BOOL hasCondition;
 @property (nonatomic, readonly) BOOL overallCondition;
 - (void)_build;
-- (NSArray*)_evaluateForeachStatement:(NSString*)tag;
+- (NSArray*)_evaluateForeachStatement:(NSString*)tag variable:(NSString**)variableName;
 - (BOOL)_evaluateConditionStatement:(NSString*)tag;
 - (NSString*)_parseStatementContent:(NSString*)tag;
 - (NSString*)_scanBlockOfType:(DMTemplateBlockType)inType returnContent:(BOOL)inReturnContent;
@@ -317,15 +325,29 @@ DMTemplateBlockType;
 									continue;
 								
 								// Evaluate foreach statement
-								NSArray* array = [self _evaluateForeachStatement:tagContent];
-								if(array == nil)
+								NSString* variableName = nil;
+								NSArray* array = [self _evaluateForeachStatement:tagContent variable:&variableName];
+								if(array == nil || variableName == nil)
 									continue;
+							
+								// Retain our context for the foreach block.
+								DMTemplateContext* context = [DMTemplateContext context];
+								context.object = self.object;
 							
 								// Content within a foreach block is rendered as a template itself.
 								DMTemplateEngine* engine = [DMTemplateEngine engineWithTemplate:blockContent];
 								engine.modifiers = self.modifiers;
-								for(id obj in array) {
-									NSString* builtContent = [engine renderAgainst:obj];
+								for(NSUInteger i = 0; i < array.count; i++) {
+									id obj = [array objectAtIndex:i];
+									// Add the desired variable to the foreach block's 
+									// context. Also add a few automatic variables for
+									// enumeration information.
+									[context setValue:obj forKey:variableName];
+									[context setValue:[NSNumber numberWithUnsignedInteger:i] forKey:[variableName stringByAppendingString:@"Index"]];
+									[context setValue:[NSNumber numberWithUnsignedInteger:i+1] forKey:[variableName stringByAppendingString:@"Number"]];
+									
+									// Render foreach content against the current context.
+									NSString* builtContent = [engine renderAgainst:context];
 									if(builtContent != nil)
 										[self.renderedTemplate appendString:builtContent];
 								}
@@ -485,7 +507,7 @@ DMTemplateBlockType;
 	return YES;
 }
 
-- (NSArray*)_evaluateForeachStatement:(NSString*)tag {
+- (NSArray*)_evaluateForeachStatement:(NSString*)tag variable:(NSString**)variableName {
 	// Tag content must be at least 10 characters in length.
 	if([tag length] < [@"foreach( )" length])
 		return nil;
@@ -495,33 +517,37 @@ DMTemplateBlockType;
 	if(statementContent == nil)
 		return nil;
 	
+	// Parse out the variable name and key from 
+	// the specified foreach statement content.
+	NSRange statementInRange = [statementContent rangeOfString:@" in " options:NSCaseInsensitiveSearch];
+	NSString* statementKey = [statementContent substringFromIndex:NSMaxRange(statementInRange)];
+	NSString* statementVariable = [statementContent substringToIndex:statementInRange.location];
+	
+	statementKey = [DMTemplateEngine _stringByTrimmingWhitespace:statementKey];
+	*variableName = [DMTemplateEngine _stringByTrimmingWhitespace:statementVariable];
+	
 	NSArray* array = nil;
 	
 	@try {
-		if([statementContent hasPrefix:@"{"] && [statementContent hasSuffix:@"}"]) {
-			// Statement is an inline array
-			statementContent = [statementContent substringWithRange:NSMakeRange(1, [statementContent length]-2)];
-			if([statementContent length] == 0)
+		if([statementKey hasPrefix:@"{"] && [statementKey hasSuffix:@"}"]) {
+			// Statement is an inline property list array definition.
+			statementKey = [statementKey substringWithRange:NSMakeRange(1, [statementKey length]-2)];
+			if([statementKey length] == 0)
 				return nil;
 			
-			// We are using property list serialization to convert inline array strings into NSArrays.
-			// This just happens to work because old-style property list array syntax is exactly 
-			// what we want, so (because I'm lazy) we simply use a built-in parser which requires the 
-			// content to be wrapped in parens.
-			
-			statementContent = [NSString stringWithFormat:@"(%@)", statementContent];
-			
-			NSPropertyListFormat propertyListFormat;
-			NSString* propertyListError;
+			// Quickly convert the defined property list to a
+			// format Apple's parser will recognize.
+			NSData* propertyListContent = [[NSString stringWithFormat:@"(%@)", statementKey] dataUsingEncoding:NSUTF8StringEncoding];
+			NSError* propertyListError;
 		
 			// Deserialize inline array and return.
-			id propertyList = [NSPropertyListSerialization propertyListFromData:[statementContent dataUsingEncoding:NSUTF8StringEncoding] mutabilityOption:NSPropertyListImmutable format:&propertyListFormat errorDescription:&propertyListError];
+			id propertyList = [NSPropertyListSerialization propertyListWithData:propertyListContent options:0 format:NULL error:&propertyListError];
 			if(propertyList && [propertyList isKindOfClass:[NSArray class]])
 				array = (NSArray*)propertyList;
 		}
 		else {
 			// Statement is (we assume) a key-value path, so try to get the value and make sure it is an array.
-			id keyValue = [self.object valueForKeyPath:statementContent];
+			id keyValue = [self.object valueForKeyPath:statementKey];
 			if(keyValue != nil && [keyValue isKindOfClass:[NSArray class]])
 				array = (NSArray*)keyValue;
 		}
@@ -714,6 +740,63 @@ DMTemplateBlockType;
 	self.modifiers = nil;
 	self.content = nil;
 	[super dealloc];
+}
+
+@end
+
+#pragma mark -
+
+@implementation DMTemplateContext
+
+@synthesize object;
+@synthesize dictionary;
+
+#pragma mark -
+
++ (id)context {
+	return [[[self alloc] init] autorelease];
+}
+
+- (id)init {
+	self = [super init];
+	if(self == nil)
+		return nil;
+
+	self.dictionary = [NSMutableDictionary dictionary];
+	
+	return self;
+}
+
+- (void)dealloc {
+	self.object = nil;
+	self.dictionary = nil;
+	[super dealloc];
+}
+
+#pragma mark -
+
+- (id)valueForUndefinedKey:(NSString*)key {
+	// Attempt to get the desired value from our
+	// dictionary first.
+	id value = [self.dictionary objectForKey:key];
+	
+	// And if our dictionary doesn't resolve the 
+	// desired key, we go ahead and ask our 
+	// proxied object.
+	if(value == nil)
+		value = [self.object valueForKey:key];
+	
+	return value;
+}
+
+- (void)setValue:(id)value forUndefinedKey:(NSString*)key {
+	// All values set here are stored on our dictionary.
+	[self.dictionary setObject:value forKey:key];
+}
+
+- (void)setNilValueForKey:(NSString*)key {
+	// Remove values when set to nil.
+	[self.dictionary removeObjectForKey:key];
 }
 
 @end

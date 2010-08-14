@@ -1,8 +1,8 @@
 Hello <? firstName /> <? lastName />,
 
 Your have <? friends.@count /> friends:
-<? foreach(friends) />
-  - <? description />
+<? foreach(friend in friends) />
+  - <? friend /> (<? friendNumber /> of <? friends.@count />
 <? endforeach />
 
 Escaped HTML: <?[e] about />

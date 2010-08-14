@@ -32,8 +32,8 @@ The engine supports some basic logic, like foreach loops and if statements. The 
     engine.template = @"Hello, my name is <? firstName />.
     <? if(friends.@count > 0) />
     I have <? friends.@count /> friends:
-    <? foreach(friends) />
-      * <? description />
+    <? foreach(friend in friends) />
+      * <? friend />
     <? endforeach />
     <? else />
     You have no friends.
@@ -48,10 +48,6 @@ I have 4 friends:
 * Garry  
 * Katie  
 * Ollie
-
-Foreach
--------
-The **foreach** operator expects to work with an object that can be enumerated over. Typically, this will be an NSArray. Within a **foreach** block, the scope is limited to the current item in the enumeration. This means you can't access template values beyond what key-values the enumerated item offers you.
 
 Modifiers
 ---------
