@@ -108,6 +108,36 @@ To aid with debugging templates, you can log template expressions using the **lo
 
     <? log(person.firstName) />
 
+## Advanced
+DMTemplateEngine makes use of Apple's NSPredicate and NSExpression classes to parse and evaluate expressions in templates run through it. As a result, you can make use of all the advanced expression features supported by both classes.
+
+### Arrays Example
+It's possible to quickly create an array of property values of another array's elements. So, if you have an array of objects each with a name property and you'd like to iterate over the lowercase version of each object's name, you'd simply write:
+
+    <? foreach(filename in files.name.lowercaseString) />
+      Lowercase file name: <? filename />
+    <? endforeach />
+
+
+### Invoking Methods Example
+Apple's NSExpression library supports invoking methods (optionally with arguments) on values through the **function** function. This allows you to run really any code against template values. The syntax is more archaic than that of DMTemplateEngine's modifiers, but can be very useful in one-off situations.
+
+#### Simple
+
+    <? function(person.firstName, "substringToIndex:", 5) />
+
+#### Arguments
+
+    <? function(person.firstName, "substringToIndex:", 5) />
+
+#### Nested
+
+    <? function(function(person.firstName, "substringToIndex:", 5), "uppercaseString") />
+
+#### Class Methods
+
+    <? function("".class, "pathWithComponents:", {"~", "dustin", "photo.jpg"}) />
+
 MIT License
 -----------
 
