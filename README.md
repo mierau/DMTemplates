@@ -13,7 +13,7 @@ In most cases, you'll probably follow these steps to render a template:
 Like so:
 
     DMTemplateEngine* engine = [DMTemplateEngine engine];
-    engine.template = @"Hello, my name is <? firstName />.";
+    engine.template = @"Hello, my name is {% firstName %}.";
     
     NSMutableDictionary* templateData = [NSMutableDictionary dictionary];
     [templateData setObject:@"Dustin" forKey:@"firstName"];
@@ -27,41 +27,41 @@ For conditional template output, DMTemplateEngine supports **if**, **elseif**, a
 
 ### Example
 
-    <? if(person.contacts.@count == 0) />
+    {% if(person.contacts.@count == 0) %}
       Please add some contacts.
-    <? elseif(person.contacts.@count < 3) />
+    {% elseif(person.contacts.@count < 3) %}
       Add some more contacts.
-    <? else />
+    {% else %}
       You have enough contacts.
-    <? endif />
+    {% endif %}
 
 ## Loops
 Along with conditions, DMTemplateEngine also supports **foreach** loops. The syntax is fairly similar to that of the fast enumeration syntax found in Objective-C, except you don't specify a type, and the specified value to enumerate over can be a simple key-value, or a key-value expression, or an inline ASCII property list.
 
 ### Example
 
-    <? foreach(contact in person.contacts) />
-      Contact name: <? contact.firstName /> <? contact.lastName />
-    <? endforeach />
+    {% foreach(contact in person.contacts) %}
+      Contact name: {% contact.firstName %} {% contact.lastName %}
+    {% endforeach %}
     
 ### Inline Example
 
-    <? foreach(contactName in {"Dustin", "Mary Ann", "Ollie"}) />
-      Contact: <? contactName />
-    <? endforeach />
+    {% foreach(contactName in {"Dustin", "Mary Ann", "Ollie"}) %}
+      Contact: {% contactName %}
+    {% endforeach %}
     
 ### Key-Value Expression Example
 
-    <? foreach(contactFirstName in person.contacts.firstName) />
-      Contact: <? contactFirstName />
-    <? endforeach />
+    {% foreach(contactFirstName in person.contacts.firstName) %}
+      Contact: {% contactFirstName %}
+    {% endforeach %}
     
 ### Loop Index Example
 Within the scope of a foreach loop, the current iteration index is made available automatically.
 
-    <? foreach(contact in person.contacts) />
-      Contact <? contactIndex+1 />: <? contact.firstName />
-    <? endforeach />
+    {% foreach(contact in person.contacts) %}
+      Contact {% contactIndex+1 %}: {% contact.firstName %}
+    {% endforeach %}
 
 ## Modifiers
 It's common to want to process a template value before rendering it (e.g. trim whitespace, escape xml, etc.). DMTemplateEngine makes this possible through **modifiers**. Modifiers are specified by a sequence of characters surrounded by square brackets at the beginning of a template value tag.
@@ -69,21 +69,21 @@ It's common to want to process a template value before rendering it (e.g. trim w
 ### Example
 Assuming a modifier is defined for the character 'w'.
 
-    <?[w] person.firstName />
+    {%[w] person.firstName %}
 
 ### Built-in Modifiers
 
 Escape XML modifier.
 
-    <?[e] person.firstName />
+    {%[e] person.firstName %}
     
 Escape URL modifier.
 
-    http://www.website.com/profile?id=<?[u] person.id />
+    http://www.website.com/profile?id={%[u] person.id %}
     
 Human readable byte size modifier.
 
-    The file size is: <?[b] file.fileSize />
+    The file size is: {%[b] file.fileSize %}
     
 ### Custom Modifier Example
 Along with the built-in modifiers, you can define your own. Let's say you want to define a modifier that trims whitespace from a template value before rendering it. You do so by defining a block that takes the original template value string and outputs a modified version of it.
@@ -93,7 +93,7 @@ Along with the built-in modifiers, you can define your own. Let's say you want t
       return [content stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     }];
 
-    engine.template = @"First name is <?[w] firstName />.";
+    engine.template = @"First name is {%[w] firstName %}.";
     NSString* renderedTemplate = [engine renderAgainst:templateData];
 
 **Rendered**: First name is Dustin.
@@ -101,12 +101,12 @@ Along with the built-in modifiers, you can define your own. Let's say you want t
 ### Multiple Modifiers Example
 Multiple modifiers can also be applied to a template value. Multiple modifiers are applied in the order they are defined. So, if you wanted to trim the whitespace from and then escape a template value.
 
-    <?[we] person.firstName />
+    {%[we] person.firstName %}
 
 ## Logging
 To aid with debugging templates, you can log template expressions using the **log** method. Apple's **NSLog** method is used to output your logged template values, so expect them to appear in the same place.
 
-    <? log(person.firstName) />
+    {% log(person.firstName) %}
 
 ## Advanced
 DMTemplateEngine makes use of Apple's NSPredicate and NSExpression classes to parse and evaluate expressions in templates run through it. As a result, you can make use of all the advanced expression features supported by both classes.
@@ -114,9 +114,9 @@ DMTemplateEngine makes use of Apple's NSPredicate and NSExpression classes to pa
 ### Arrays Example
 It's possible to quickly create an array of property values of another array's elements. So, if you have an array of objects each with a name property and you'd like to iterate over the lowercase version of each object's name, you'd simply write:
 
-    <? foreach(filename in files.name.lowercaseString) />
-      Lowercase file name: <? filename />
-    <? endforeach />
+    {% foreach(filename in files.name.lowercaseString) %}
+      Lowercase file name: {% filename %}
+    {% endforeach %}
 
 
 ### Invoking Methods Example
@@ -124,24 +124,24 @@ Apple's NSExpression library supports invoking methods (optionally with argument
 
 #### Simple
 
-    <? function(person.firstName, "substringToIndex:", 5) />
+    {% function(person.firstName, "substringToIndex:", 5) %}
 
 #### Arguments
 
-    <? function(person.firstName, "substringToIndex:", 5) />
+    {% function(person.firstName, "substringToIndex:", 5) %}
 
 #### Nested
 
-    <? function(function(person.firstName, "substringToIndex:", 5), "uppercaseString") />
+    {% function(function(person.firstName, "substringToIndex:", 5), "uppercaseString") %}
 
 #### Class Methods
 
-    <? function("".class, "pathWithComponents:", {"~", "dustin", "photo.jpg"}) />
+    {% function("".class, "pathWithComponents:", {"~", "dustin", "photo.jpg"}) %}
 
 MIT License
 -----------
 
-Copyright (c) 2010 Dustin Mierau
+Copyright (c) 2014 Dustin Mierau
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
