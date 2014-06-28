@@ -1,6 +1,6 @@
 
 // DMTemplateEngine.m
-// by Dustin Mierau
+// Dustin Mierau
 // Cared for under the MIT license.
 
 #import "DMTemplateEngine.h"
@@ -54,6 +54,7 @@ DMTemplateBlockType;
 @property (nonatomic, assign) id object;
 @property (nonatomic, assign) NSMutableArray* conditionStack;
 @property (nonatomic, retain) NSMutableDictionary* modifiers;
+@property (nonatomic, retain) NSMutableDictionary* regexStorage;
 @property (nonatomic, assign) NSScanner* scanner;
 @property (nonatomic, assign) NSMutableString* renderedTemplate;
 @property (nonatomic, readonly) DMTemplateCondition* currentCondition;
@@ -68,6 +69,8 @@ DMTemplateBlockType;
 - (void)_pushCondition:(DMTemplateCondition*)inCondition;
 - (void)_popCondition;
 - (DMTemplateTagInfo*)_analyzeTagContent:(NSString*)content;
+- (BOOL)_tag:(NSString*)tag isTagType:(DMTemplateTagType)tagType;
+- (NSRegularExpression*)_regexForTagType:(DMTemplateTagType)tagType;
 - (DMTemplateTagType)_determineTemplateTagType:(NSString*)tag;
 @end
 
@@ -89,6 +92,7 @@ DMTemplateBlockType;
 @synthesize template;
 @synthesize object;
 @synthesize conditionStack;
+@synthesize regexStorage;
 @synthesize scanner;
 @synthesize renderedTemplate;
 @synthesize modifiers;
@@ -111,15 +115,19 @@ DMTemplateBlockType;
 
 - (id)init {
 	self = [super init];
-	if(self == nil)
+	if(self == nil) {
 		return nil;
+	}
 	
 	// Set default processor markers.
-	self.beginProcessorMarker = @"<?";
-	self.endProcessorMarker = @"/>";
+	self.beginProcessorMarker = @"{%";
+	self.endProcessorMarker = @"%}";
 	
 	// Create modifier storage.
 	self.modifiers = [NSMutableDictionary dictionary];
+	
+	// Create storage for regular expressions.
+	self.regexStorage = [NSMutableDictionary dictionary];
 	
 	// Register URL encode modifier.
 	[self addModifier:'u' block:^(NSString* value) {
@@ -148,6 +156,7 @@ DMTemplateBlockType;
 	self.modifiers = nil;
 	self.beginProcessorMarker = nil;
 	self.endProcessorMarker = nil;
+	self.regexStorage = nil;
 	
 	[super dealloc];
 }
@@ -162,16 +171,18 @@ DMTemplateBlockType;
 - (BOOL)overallCondition {
 	// The overall condition is false if a single condition on the stack is false.
 	for(DMTemplateCondition* condition in self.conditionStack) {
-		if(!condition.result)
+		if(!condition.result) {
 			return NO;
+		}
 	}
 	
 	return YES;
 }
 
 - (DMTemplateCondition*)currentCondition {
-	if(self.hasCondition)
+	if(self.hasCondition) {
 		return [self.conditionStack lastObject];
+	}
 	
 	return nil;
 }
@@ -195,8 +206,9 @@ DMTemplateBlockType;
 #pragma mark Render
 
 - (NSString*)renderAgainst:(id)obj {
-	if(self.template == nil)
+	if(self.template == nil) {
 		return nil;
+	}
 	
 	self.object = obj;
 	self.conditionStack = [NSMutableArray array];
@@ -240,17 +252,20 @@ DMTemplateBlockType;
 			// Scan contents up to the first start delimeter we can find
 			if([self.scanner scanUpToString:startDelimeter intoString:(skipContent ? nil : &scannedText)]) {
 				// Append scanned content to result if we are not skipping this content
-				if(!skipContent)
+				if(!skipContent) {
 					[self.renderedTemplate appendString:scannedText];
+				}
 			}
 
 			// Scan past start delimeter if possible
-			if(![self.scanner scanString:startDelimeter intoString:nil])
+			if(![self.scanner scanString:startDelimeter intoString:nil]) {
 				continue;
+			}
 
 			// Scan past end delimiter if possible (a sanity check really, for totally empty tags)
-			if([self.scanner scanString:endDelimeter intoString:nil])
+			if([self.scanner scanString:endDelimeter intoString:nil]) {
 				continue;
+			}
 
 			// Scan tag content up to end delimeter and scan past end delimeter too if possible
 			if([self.scanner scanUpToString:endDelimeter intoString:&tagContent] && [self.scanner scanString:endDelimeter intoString:nil]) {
@@ -266,10 +281,12 @@ DMTemplateBlockType;
 								
 								// If we are current skipping this content, mark this new condition as solved. This way other 
 								// conditions will naturally skip processing. Otherwise, let us evaluate the tag content.
-								if(skipContent)
+								if(skipContent) {
 									condition.result = YES;
-								else
+								}
+								else {
 									condition.result = [self _evaluateConditionStatement:tagContent];
+								}
 
 								// Throw new condition object onto the stack
 								[self _pushCondition:condition];
@@ -284,10 +301,12 @@ DMTemplateBlockType;
 								
 								// If the current condition has already been solved, avoid evaluation by simply ignoring 
 								// this condition completely.
-								if(condition.isSolved)
+								if(condition.isSolved) {
 									condition.result = NO;
-								else
+								}
+								else {
 									condition.result = [self _evaluateConditionStatement:tagContent];
+								}
 							
 								// Skip over a newline, if necessary.
 								[self _scanSingleNewline];
@@ -321,14 +340,16 @@ DMTemplateBlockType;
 								// Read foreach block content, only store if we are not currently skipping over content.
 								NSString* blockContent = [self _scanBlockOfType:DMTemplateForEachBlockType returnContent:!skipContent];
 								
-								if(skipContent)
+								if(skipContent) {
 									continue;
+								}
 								
 								// Evaluate foreach statement
 								NSString* variableName = nil;
 								NSArray* array = [self _evaluateForeachStatement:tagContent variable:&variableName];
-								if(array == nil || variableName == nil)
+								if(array == nil || variableName == nil) {
 									continue;
+								}
 							
 								// Retain our context for the foreach block.
 								DMTemplateContext* context = [DMTemplateContext context];
@@ -347,16 +368,21 @@ DMTemplateBlockType;
 									
 									// Render foreach content against the current context.
 									NSString* builtContent = [engine renderAgainst:context];
-									if(builtContent != nil)
+									if(builtContent != nil) {
 										[self.renderedTemplate appendString:builtContent];
+									}
 								}
 							}
+							break;
+							
+						case DMTemplateEndForEachTagType:
 							break;
 						
 						case DMTemplateLogTagType: {
 								// If we are currently skipping content, don't log.
-								if(skipContent)
+								if(skipContent) {
 									continue;
+								}
 								
 								NSString* statementContent = [self _parseStatementContent:tagContent];
 								if(([statementContent hasPrefix:@"\""] && [statementContent hasSuffix:@"\""]) || ([statementContent hasPrefix:@"'"] && [statementContent hasSuffix:@"'"])) {
@@ -378,8 +404,9 @@ DMTemplateBlockType;
 							
 						case DMTemplateValueTagType: {
 								// If we are currently skipping content, simply skip this value.
-								if(skipContent)
+								if(skipContent) {
 									continue;
+								}
 
 								// Get key value for the specified key path. If a value is found, 
 								// append it to the result. We're also tricking NSPredicate into 
@@ -394,8 +421,9 @@ DMTemplateBlockType;
 									// Run through modifiers and apply.
 									for(NSString* modifier in tagInfo.modifiers) {
 										NSString*(^modifierBlock)(NSString*) = [self.modifiers objectForKey:modifier];
-										if(modifierBlock != nil)
+										if(modifierBlock != nil) {
 											keyString = modifierBlock(keyString);
+										}
 									}
 									
 									// Append modified value to rendering.
@@ -422,13 +450,15 @@ DMTemplateBlockType;
 	NSRange closeBracketRange = [tag rangeOfString:@")" options:NSBackwardsSearch];
 	
 	// Make sure open and close brackets were found
-	if(openBracketRange.length == 0 || closeBracketRange.length == 0 || closeBracketRange.location <= NSMaxRange(openBracketRange))
+	if(openBracketRange.length == 0 || closeBracketRange.length == 0 || closeBracketRange.location <= NSMaxRange(openBracketRange)) {
 		return nil;
+	}
 	
 	// Determine content range
 	NSRange conditionContentRange = NSMakeRange(NSMaxRange(openBracketRange), closeBracketRange.location - NSMaxRange(openBracketRange));
-	if(conditionContentRange.length == 0)
+	if(conditionContentRange.length == 0) {
 		return nil;
+	}
 	
 	// Extract content
 	NSString* content = [tag substringWithRange:conditionContentRange];
@@ -437,8 +467,9 @@ DMTemplateBlockType;
 	content = [DMTemplateEngine _stringByTrimmingWhitespace:content];
 	
 	// Return null if the content is empty
-	if([content length] == 0)
+	if([content length] == 0) {
 		return nil;
+	}
 	
 	return content;
 }
@@ -454,17 +485,20 @@ DMTemplateBlockType;
 		// Scan contents up to the first start delimeter we can find
 		if([self.scanner scanUpToString:self.beginProcessorMarker intoString:(returnContent ? &scannedText : nil)]) {
 			// Append scanned content to result if we are not skipping this content
-			if(returnContent)
+			if(returnContent) {
 				[content appendString:scannedText];
+			}
 		}
 
 		// Scan past start delimeter if possible
-		if(![self.scanner scanString:self.beginProcessorMarker intoString:nil])
+		if(![self.scanner scanString:self.beginProcessorMarker intoString:nil]) {
 			continue;
+		}
 
 		// Scan past end delimiter if possible (a sanity check really, for totally empty tags
-		if([self.scanner scanString:self.endProcessorMarker intoString:nil])
+		if([self.scanner scanString:self.endProcessorMarker intoString:nil]) {
 			continue;
+		}
 
 		// Scan tag content up to end delimeter and scan past end delimeter too if possible
 		if([self.scanner scanUpToString:self.endProcessorMarker intoString:&tagContent] && [self.scanner scanString:self.endProcessorMarker intoString:nil]) {
@@ -473,20 +507,23 @@ DMTemplateBlockType;
 			
 			DMTemplateTagType tagType = [self _determineTemplateTagType:tagContent];
 			
-			if((inType == DMTemplateIfBlockType && tagType == DMTemplateIfTagType) || (inType == DMTemplateForEachBlockType && tagType == DMTemplateForEachTagType))
+			if((inType == DMTemplateIfBlockType && tagType == DMTemplateIfTagType) || (inType == DMTemplateForEachBlockType && tagType == DMTemplateForEachTagType)) {
 				nestLevel++;
+			}
 			else
 			if((inType == DMTemplateIfBlockType && tagType == DMTemplateEndIfTagType) || (inType == DMTemplateForEachBlockType && tagType == DMTemplateEndForEachTagType)) {
 				if(nestLevel == 0) {
 					[self _scanSingleNewline];
 					break;
 				}
-				else
+				else {
 					nestLevel--;
+				}
 			}
 			
-			if(returnContent)
+			if(returnContent) {
 				[content appendFormat:@"%@ %@ %@", self.beginProcessorMarker, tagContent, self.endProcessorMarker];
+			}
 		}
 	}
 	
@@ -495,16 +532,18 @@ DMTemplateBlockType;
 
 - (BOOL)_scanSingleNewline {
 	// Pass on this scan if the scanner is done.
-	if([self.scanner isAtEnd])
+	if([self.scanner isAtEnd]) {
 		return NO;
+	}
 	
 	NSUInteger loc = [self.scanner scanLocation];
 	unichar character = [[self.scanner string] characterAtIndex:[self.scanner scanLocation]];
 	
 	// If this character is not part of the newline
 	// character set, then we're not going to skip it.
-	if(![[NSCharacterSet newlineCharacterSet] characterIsMember:character])
+	if(![[NSCharacterSet newlineCharacterSet] characterIsMember:character]) {
 		return NO;
+	}
 	
 	// If this character is part of the newline set
 	// then let's skip over it.
@@ -515,13 +554,15 @@ DMTemplateBlockType;
 
 - (NSArray*)_evaluateForeachStatement:(NSString*)tag variable:(NSString**)variableName {
 	// Tag content must be at least 10 characters in length.
-	if([tag length] < [@"foreach( )" length])
+	if([tag length] < [@"foreach( )" length]) {
 		return nil;
+	}
 	
 	// Parse statement content
 	NSString* statementContent = [self _parseStatementContent:tag];
-	if(statementContent == nil)
+	if(statementContent == nil) {
 		return nil;
+	}
 	
 	// Parse out the variable name and key from 
 	// the specified foreach statement content.
@@ -538,8 +579,9 @@ DMTemplateBlockType;
 		if([statementKey hasPrefix:@"{"] && [statementKey hasSuffix:@"}"]) {
 			// Statement is an inline property list array definition.
 			statementKey = [statementKey substringWithRange:NSMakeRange(1, [statementKey length]-2)];
-			if([statementKey length] == 0)
+			if([statementKey length] == 0) {
 				return nil;
+			}
 			
 			// Quickly convert the defined property list to a
 			// format Apple's parser will recognize.
@@ -548,14 +590,16 @@ DMTemplateBlockType;
 		
 			// Deserialize inline array and return.
 			id propertyList = [NSPropertyListSerialization propertyListWithData:propertyListContent options:0 format:NULL error:&propertyListError];
-			if(propertyList && [propertyList isKindOfClass:[NSArray class]])
+			if(propertyList && [propertyList isKindOfClass:[NSArray class]]) {
 				array = (NSArray*)propertyList;
+			}
 		}
 		else {
 			// Statement is (we assume) a key-value path, so try to get the value and make sure it is an array.
 			id keyValue = [self.object valueForKeyPath:statementKey];
-			if(keyValue != nil && [keyValue isKindOfClass:[NSArray class]])
+			if(keyValue != nil && [keyValue isKindOfClass:[NSArray class]]) {
 				array = (NSArray*)keyValue;
+			}
 		}
 	}
 	@catch(id exception) {
@@ -567,13 +611,15 @@ DMTemplateBlockType;
 
 - (BOOL)_evaluateConditionStatement:(NSString*)tag {
 	// Tag content must be at least 5 characters in length.
-	if([tag length] < [@"if( )" length])
+	if([tag length] < [@"if( )" length]) {
 		return NO;
+	}
 	
 	// Parse condition content
 	NSString* conditionContent = [self _parseStatementContent:tag];
-	if(conditionContent == nil)
+	if(conditionContent == nil) {
 		return NO;
+	}
 	
 	BOOL result = NO;
 	
@@ -621,46 +667,109 @@ DMTemplateBlockType;
 	return tagInfo;
 }
 
+- (BOOL)_tag:(NSString*)tag isTagType:(DMTemplateTagType)tagType {
+	NSRegularExpression* regex = [self _regexForTagType:tagType];
+	if(regex == nil) {
+		return NO;
+	}
+	
+	NSRange tagRange = [regex rangeOfFirstMatchInString:tag options:NSMatchingAnchored range:NSMakeRange(0, [tag length])];
+	return (tagRange.location != NSNotFound);
+}
+
+- (NSRegularExpression*)_regexForTagType:(DMTemplateTagType)tagType {
+	NSNumber* tagTypeNumber = [[NSNumber alloc] initWithUnsignedInteger:tagType];
+	NSRegularExpression* regex = nil;
+	
+	regex = [self.regexStorage objectForKey:tagTypeNumber];
+	if(regex == nil) {
+		NSString* pattern = nil;
+		
+		switch(tagType) {
+			case DMTemplateIfTagType:
+				pattern = @"if\\s*\\(\\s*";
+				break;
+				
+			case DMTemplateElseIfTagType:
+				pattern = @"elseif\\s*\\(\\s*";
+				break;
+				
+			case DMTemplateElseTagType:
+				pattern = @"else";
+				break;
+				
+			case DMTemplateEndIfTagType:
+				pattern = @"endif";
+				break;
+				
+			case DMTemplateForEachTagType:
+				pattern = @"foreach\\s*\\(\\s*";
+				break;
+				
+			case DMTemplateEndForEachTagType:
+				pattern = @"endforeach";
+				break;
+				
+			case DMTemplateLogTagType:
+				pattern = @"log\\s*\\(\\s*";
+				break;
+				
+			case DMTemplateValueTagType:
+				pattern = nil;
+				break;
+		}
+		
+		if(pattern != nil) {
+			regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:NULL];
+			[self.regexStorage setObject:regex forKey:tagTypeNumber];
+		}
+	}
+	
+	[tagTypeNumber release];
+	
+	return regex;
+}
+
 - (DMTemplateTagType)_determineTemplateTagType:(NSString*)tag {
 	DMTemplateTagType tagType;
 	
-	if([tag isCaseInsensitiveLike:@"if*(*"]) {
+	if([self _tag:tag isTagType:DMTemplateIfTagType]) {
 		// Tag is an if statement
 		// e.g. if(condition)
 		tagType = DMTemplateIfTagType;
 	}
 	else
-	if([tag isCaseInsensitiveLike:@"else"]) {
+	if([self _tag:tag isTagType:DMTemplateElseTagType]) {
 		// Tag is a simple else statement
 		// e.g. else
 		tagType = DMTemplateElseTagType;
 	}
 	else
-	if([tag isCaseInsensitiveLike:@"elseif*(*"]) {
+	if([self _tag:tag isTagType:DMTemplateElseIfTagType]) {
 		// Tag is an alternative if statement
 		// e.g. elseif(condition)
 		tagType = DMTemplateElseIfTagType;
 	}
 	else
-	if([tag isCaseInsensitiveLike:@"endif"]) {
+	if([self _tag:tag isTagType:DMTemplateEndIfTagType]) {
 		// Tag is a closing if statement
 		// e.g. endif
 		tagType = DMTemplateEndIfTagType;
 	}
 	else
-	if([tag isCaseInsensitiveLike:@"foreach*(*"]) {
+	if([self _tag:tag isTagType:DMTemplateForEachTagType]) {
 		// Tag is a foreach statement
 		// e.g. foreach(array)
 		tagType = DMTemplateForEachTagType;
 	}
 	else
-	if([tag isCaseInsensitiveLike:@"endforeach"]) {
+	if([self _tag:tag isTagType:DMTemplateEndForEachTagType]) {
 		// Tag is a closing foreach statement
 		// e.g. endforeach
 		tagType = DMTemplateEndForEachTagType;
 	}
 	else
-	if([tag isCaseInsensitiveLike:@"log*(*"]) {
+	if([self _tag:tag isTagType:DMTemplateLogTagType]) {
 		// Tag is a log statement
 		// e.g. log
 		tagType = DMTemplateLogTagType;
@@ -701,8 +810,9 @@ DMTemplateBlockType;
 
 - (id)init {
 	self = [super init];
-	if(self == nil)
+	if(self == nil) {
 		return nil;
+	}
 	
 	isSolved = NO;
 	result = NO;
@@ -712,8 +822,9 @@ DMTemplateBlockType;
 
 - (void)setConditionResult:(BOOL)flag {
 	result = flag;
-	if(flag)
+	if(flag) {
 		isSolved = YES;
+	}
 }
 
 @end
@@ -734,8 +845,9 @@ DMTemplateBlockType;
 
 - (id)init {
 	self = [super init];
-	if(self == nil)
+	if(self == nil) {
 		return nil;
+	}
 	
 	self.modifiers = [NSMutableArray array];
 	
@@ -765,8 +877,9 @@ DMTemplateBlockType;
 
 - (id)init {
 	self = [super init];
-	if(self == nil)
+	if(self == nil) {
 		return nil;
+	}
 
 	self.dictionary = [NSMutableDictionary dictionary];
 	
@@ -789,8 +902,9 @@ DMTemplateBlockType;
 	// And if our dictionary doesn't resolve the 
 	// desired key, we go ahead and ask our 
 	// proxied object.
-	if(value == nil)
+	if(value == nil) {
 		value = [self.object valueForKey:key];
+	}
 	
 	return value;
 }
@@ -815,28 +929,33 @@ DMTemplateBlockType;
 	double kb, mb, gb, tb, pb;
 	
 	// Handle bytes
-	if(bytes < 1000)
+	if(bytes < 1000) {
 		return [NSString stringWithFormat:@"%d B", (int)bytes];
+	}
 	
 	// Handle kilobytes
 	kb = bytes / 1024.0;
-	if(kb < 1000.0)
+	if(kb < 1000.0) {
 		return [NSString stringWithFormat:@"%0.1f KB", kb];
+	}
 	
 	// Handle megabytes
 	mb = kb / 1024.0;
-	if(mb < 1000.0)
+	if(mb < 1000.0) {
 		return [NSString stringWithFormat:@"%0.1f MB", mb];
+	}
 	
 	// Handle gigabytes
 	gb = mb / 1024.0;
-	if(gb < 1000.0)
+	if(gb < 1000.0) {
 		return [NSString stringWithFormat:@"%0.1f GB", gb];
+	}
 	
 	// Handle terabytes
 	tb = gb / 1024.0;
-	if(tb < 1000.0)
+	if(tb < 1000.0) {
 		return [NSString stringWithFormat:@"%0.1f TB", tb];
+	}
 	
 	// Handle petabytes
 	pb = tb / 1024.0;
@@ -845,22 +964,27 @@ DMTemplateBlockType;
 
 + (NSString*)_stringByEscapingXMLEntities:(NSString*)string {
 	static const unichar nbsp = 0xA0;
-	NSDictionary* entities = [NSDictionary dictionaryWithObjectsAndKeys:
-														@"amp", @"&",
-														@"lt", @"<",
-														@"gt", @">", 
-														@"quot", @"\"",
-														@"apos", @"'",
-														@"nbsp", [NSString stringWithCharacters:&nbsp length:1],
-														@"#x09", @"\t",
-														@"#x0A", @"\n",
-														@"#x0B", @"\v",
-														@"#x0C", @"\f",
-														@"#x0D", @"\r",
-														nil
-														];
+	NSArray* entities = @[
+		@"&amp;", @"&",
+		@"&lt;", @"<",
+		@"&gt;", @">",
+		@"&quot;", @"\"",
+		@"&apos;", @"'",
+		@"&nbsp;", [NSString stringWithCharacters:&nbsp length:1],
+		@"&#x09;", @"\t",
+		@"&#x0A;", @"\n",
+		@"&#x0B;", @"\v",
+		@"&#x0C;", @"\f",
+		@"&#x0D;", @"\r"
+	];
 	
-	return [(NSString*)CFXMLCreateStringByEscapingEntities(kCFAllocatorDefault, (CFStringRef)string, (CFDictionaryRef)entities) autorelease];
+	for(NSUInteger i = 0; i < [entities count]; i += 2) {
+		NSString* entity = [entities objectAtIndex:i];
+		NSString* entityChar = [entities objectAtIndex:i+1];
+		string = [string stringByReplacingOccurrencesOfString:entityChar withString:entity options:NSCaseInsensitiveSearch range:NSMakeRange(0, [string length])];
+	}
+	
+	return string;
 }
 
 + (NSString*)_stringByAddingPercentEscapes:(NSString*)string {
@@ -870,8 +994,9 @@ DMTemplateBlockType;
 + (NSString*)_stringByRemovingCharactersFromSet:(NSCharacterSet*)set string:(NSString*)string {
 	NSMutableString* result;
 	
-	if([string rangeOfCharacterFromSet:set options:NSLiteralSearch].length == 0)
+	if([string rangeOfCharacterFromSet:set options:NSLiteralSearch].length == 0) {
 		return string;
+	}
 	
 	result = [[string mutableCopyWithZone:[string zone]] autorelease];
 	[self _removeCharactersInSet:set string:result];
@@ -885,9 +1010,8 @@ DMTemplateBlockType;
 
 + (void)_removeCharactersInSet:(NSCharacterSet*)set string:(NSMutableString*)string {
 	NSRange matchRange, searchRange, replaceRange;
-	unsigned int length;
+	NSUInteger length = [string length];
 	
-	length = [string length];
 	matchRange = [string rangeOfCharacterFromSet:set options:NSLiteralSearch range:NSMakeRange(0, length)];
 	while(matchRange.length > 0) {
 		replaceRange = matchRange;
@@ -896,8 +1020,9 @@ DMTemplateBlockType;
 		
 		while(YES) {
 			matchRange = [string rangeOfCharacterFromSet:set options:NSLiteralSearch range:searchRange];
-			if((matchRange.length == 0) || (matchRange.location != searchRange.location))
+			if((matchRange.length == 0) || (matchRange.location != searchRange.location)) {
 				break;
+			}
 			
 			replaceRange.length += matchRange.length;
 			searchRange.length -= matchRange.length;

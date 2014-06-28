@@ -1,19 +1,19 @@
 
 // DMTemplates
-// by Dustin Mierau
+// Dustin Mierau
 // Cared for under the MIT license.
 
 #import "DMTemplateEngine.h"
 
 int main(int argc, const char* argv[]) {
-	NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
 	NSUserDefaults* args = [NSUserDefaults standardUserDefaults];
 	NSURL* templateURL = [args URLForKey:@"template"];
 	NSURL* plistURL = [args URLForKey:@"plist"];
 	
 	// Use default template if none other was specified.
 	if(templateURL == nil) {
-		NSString* templatePath = [[[NSFileManager defaultManager] currentDirectoryPath] stringByAppendingFormat:@"/../../Data/ExampleTemplate.txt"];
+		NSString* templatePath = [[[[NSString stringWithCString:__FILE__ encoding:NSUTF8StringEncoding] stringByDeletingLastPathComponent] stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"Example/ExampleTemplate.txt"];
+		
 		templateURL = [NSURL fileURLWithPath:templatePath];
 	}
 	
@@ -25,7 +25,7 @@ int main(int argc, const char* argv[]) {
 	
 	// Use default template data if none other was specified.
 	if(plistURL == nil) {
-		NSString* dataPath = [[[NSFileManager defaultManager] currentDirectoryPath] stringByAppendingFormat:@"/../../Data/ExampleData.plist"];
+		NSString* dataPath = [[[[NSString stringWithCString:__FILE__ encoding:NSUTF8StringEncoding] stringByDeletingLastPathComponent] stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"Example/ExampleData.plist"];
 		plistURL = [NSURL fileURLWithPath:dataPath];
 	}
 	
@@ -49,7 +49,5 @@ int main(int argc, const char* argv[]) {
 	// Output rendered template.
 	printf("%s", [rendered cStringUsingEncoding:templateEncoding]);
 	
-	// Done
-	[pool drain];
 	return 0;
 }

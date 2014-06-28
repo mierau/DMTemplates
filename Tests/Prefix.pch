@@ -1,0 +1,8 @@
+
+// DMTemplates
+// Dustin Mierau
+// Cared for under the MIT license.
+
+#ifdef __OBJC__
+	#import <Cocoa/Cocoa.h>
+#endif

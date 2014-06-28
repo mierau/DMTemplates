@@ -3,21 +3,33 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 45;
+	objectVersion = 46;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8DD76F9C0486AA7600D96B5E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08FB779EFE84155DC02AAC07 /* Foundation.framework */; };
-		DA9BA9901200B633002E267F /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = DA9BA98F1200B633002E267F /* main.m */; };
-		DACC9CE311FFFC1400191036 /* DMTemplateEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = DACC9CE211FFFC1400191036 /* DMTemplateEngine.m */; };
-		DAE7ED5D12078FB9003260CF /* DMTemplateTests.m in Sources */ = {isa = PBXBuildFile; fileRef = DAE7ED5C12078FB9003260CF /* DMTemplateTests.m */; };
-		DAE7EDAA12079182003260CF /* DMTemplateEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = DACC9CE211FFFC1400191036 /* DMTemplateEngine.m */; };
+		DA582646195E65FC008CF4F1 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DA582645195E65FC008CF4F1 /* Foundation.framework */; };
+		DA582655195E6682008CF4F1 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = DA582653195E6682008CF4F1 /* main.m */; };
+		DA582660195E6D0A008CF4F1 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DA58265F195E6D0A008CF4F1 /* XCTest.framework */; };
+		DA582671195E7A89008CF4F1 /* DMTemplateTests.m in Sources */ = {isa = PBXBuildFile; fileRef = DA582670195E7A89008CF4F1 /* DMTemplateTests.m */; };
+		DA582677195E7ABF008CF4F1 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = DA582675195E7ABF008CF4F1 /* InfoPlist.strings */; };
+		DA58267A195E7B70008CF4F1 /* DMTemplateEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = DA582679195E7B70008CF4F1 /* DMTemplateEngine.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
+		DA58267B195E7B70008CF4F1 /* DMTemplateEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = DA582679195E7B70008CF4F1 /* DMTemplateEngine.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		DA58266A195E6D0A008CF4F1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DA58263A195E65FC008CF4F1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DA582641195E65FC008CF4F1;
+			remoteInfo = DMTemplates;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXCopyFilesBuildPhase section */
-		8DD76F9E0486AA7600D96B5E /* CopyFiles */ = {
+		DA582640195E65FC008CF4F1 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 8;
+			buildActionMask = 2147483647;
 			dstPath = /usr/share/man/man1/;
 			dstSubfolderSpec = 0;
 			files = (
@@ -27,331 +39,376 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		08FB779EFE84155DC02AAC07 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
-		8DD76FA10486AA7600D96B5E /* dmtemplate */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = dmtemplate; sourceTree = BUILT_PRODUCTS_DIR; };
-		DA9BA98F1200B633002E267F /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = Source/main.m; sourceTree = "<group>"; };
-		DA9BA99E1200B670002E267F /* prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = prefix.pch; path = Source/prefix.pch; sourceTree = "<group>"; };
-		DACC9CE111FFFC1400191036 /* DMTemplateEngine.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = DMTemplateEngine.h; path = Source/DMTemplateEngine.h; sourceTree = "<group>"; };
-		DACC9CE211FFFC1400191036 /* DMTemplateEngine.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = DMTemplateEngine.m; path = Source/DMTemplateEngine.m; sourceTree = "<group>"; };
-		DAE7ED5412078F59003260CF /* Tests.octest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Tests.octest; sourceTree = BUILT_PRODUCTS_DIR; };
-		DAE7ED5B12078FB9003260CF /* DMTemplateTests.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = DMTemplateTests.h; path = Tests/DMTemplateTests.h; sourceTree = "<group>"; };
-		DAE7ED5C12078FB9003260CF /* DMTemplateTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = DMTemplateTests.m; path = Tests/DMTemplateTests.m; sourceTree = "<group>"; };
-		DAE7ED6D12079045003260CF /* TestsInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = TestsInfo.plist; path = Tests/TestsInfo.plist; sourceTree = "<group>"; };
+		DA582642195E65FC008CF4F1 /* dmtemplates */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = dmtemplates; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA582645195E65FC008CF4F1 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		DA582653195E6682008CF4F1 /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = Source/main.m; sourceTree = "<group>"; };
+		DA582659195E66D7008CF4F1 /* Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Prefix.pch; path = ../../Code/DMTemplates/Source/Prefix.pch; sourceTree = "<group>"; };
+		DA58265E195E6D0A008CF4F1 /* Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA58265F195E6D0A008CF4F1 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		DA582670195E7A89008CF4F1 /* DMTemplateTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = DMTemplateTests.m; path = Tests/DMTemplateTests.m; sourceTree = SOURCE_ROOT; };
+		DA582672195E7A93008CF4F1 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Tests/Info.plist; sourceTree = SOURCE_ROOT; };
+		DA582674195E7AA0008CF4F1 /* Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Prefix.pch; path = Tests/Prefix.pch; sourceTree = SOURCE_ROOT; };
+		DA582676195E7ABF008CF4F1 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = Tests/en.lproj/InfoPlist.strings; sourceTree = SOURCE_ROOT; };
+		DA582678195E7B6F008CF4F1 /* DMTemplateEngine.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DMTemplateEngine.h; sourceTree = "<group>"; };
+		DA582679195E7B70008CF4F1 /* DMTemplateEngine.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DMTemplateEngine.m; sourceTree = "<group>"; };
+		DA582683195E9AAB008CF4F1 /* ExampleData.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = ExampleData.plist; sourceTree = "<group>"; };
+		DA582684195E9AAB008CF4F1 /* ExampleTemplate.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ExampleTemplate.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		8DD76F9B0486AA7600D96B5E /* Frameworks */ = {
+		DA58263F195E65FC008CF4F1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8DD76F9C0486AA7600D96B5E /* Foundation.framework in Frameworks */,
+				DA582646195E65FC008CF4F1 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		DAE7ED5112078F59003260CF /* Frameworks */ = {
+		DA58265B195E6D0A008CF4F1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DA582660195E6D0A008CF4F1 /* XCTest.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		08FB7794FE84155DC02AAC07 /* DMTemplate */ = {
+		DA582639195E65FC008CF4F1 = {
 			isa = PBXGroup;
 			children = (
-				DA9BA99E1200B670002E267F /* prefix.pch */,
-				DA9BA98F1200B633002E267F /* main.m */,
-				08FB7795FE84155DC02AAC07 /* Source */,
-				DAE7ED5A12078F67003260CF /* Tests */,
-				08FB779DFE84155DC02AAC07 /* Frameworks */,
-				1AB674ADFE9D54B511CA2CBB /* Products */,
+				DA582659195E66D7008CF4F1 /* Prefix.pch */,
+				DA582653195E6682008CF4F1 /* main.m */,
+				DA58267C195E7BA4008CF4F1 /* Library */,
+				DA582682195E9AAB008CF4F1 /* Example */,
+				DA582661195E6D0A008CF4F1 /* Tests */,
+				DA582644195E65FC008CF4F1 /* Frameworks */,
+				DA582643195E65FC008CF4F1 /* Products */,
 			);
-			name = DMTemplate;
 			sourceTree = "<group>";
 		};
-		08FB7795FE84155DC02AAC07 /* Source */ = {
+		DA582643195E65FC008CF4F1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DACC9CE111FFFC1400191036 /* DMTemplateEngine.h */,
-				DACC9CE211FFFC1400191036 /* DMTemplateEngine.m */,
-			);
-			name = Source;
-			sourceTree = "<group>";
-		};
-		08FB779DFE84155DC02AAC07 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				08FB779EFE84155DC02AAC07 /* Foundation.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		1AB674ADFE9D54B511CA2CBB /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				8DD76FA10486AA7600D96B5E /* dmtemplate */,
-				DAE7ED5412078F59003260CF /* Tests.octest */,
+				DA582642195E65FC008CF4F1 /* dmtemplates */,
+				DA58265E195E6D0A008CF4F1 /* Tests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		DAE7ED5A12078F67003260CF /* Tests */ = {
+		DA582644195E65FC008CF4F1 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				DAE7ED6D12079045003260CF /* TestsInfo.plist */,
-				DAE7ED5B12078FB9003260CF /* DMTemplateTests.h */,
-				DAE7ED5C12078FB9003260CF /* DMTemplateTests.m */,
+				DA582645195E65FC008CF4F1 /* Foundation.framework */,
+				DA58265F195E6D0A008CF4F1 /* XCTest.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		DA582661195E6D0A008CF4F1 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				DA582674195E7AA0008CF4F1 /* Prefix.pch */,
+				DA582670195E7A89008CF4F1 /* DMTemplateTests.m */,
+				DA582675195E7ABF008CF4F1 /* InfoPlist.strings */,
+				DA582672195E7A93008CF4F1 /* Info.plist */,
 			);
 			name = Tests;
+			path = "DMTemplates Tests";
+			sourceTree = "<group>";
+		};
+		DA58267C195E7BA4008CF4F1 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				DA582678195E7B6F008CF4F1 /* DMTemplateEngine.h */,
+				DA582679195E7B70008CF4F1 /* DMTemplateEngine.m */,
+			);
+			name = Library;
+			sourceTree = "<group>";
+		};
+		DA582682195E9AAB008CF4F1 /* Example */ = {
+			isa = PBXGroup;
+			children = (
+				DA582683195E9AAB008CF4F1 /* ExampleData.plist */,
+				DA582684195E9AAB008CF4F1 /* ExampleTemplate.txt */,
+			);
+			path = Example;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		8DD76F960486AA7600D96B5E /* DMTemplate */ = {
+		DA582641195E65FC008CF4F1 /* DMTemplates */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1DEB927408733DD40010E9CD /* Build configuration list for PBXNativeTarget "DMTemplate" */;
+			buildConfigurationList = DA582650195E65FC008CF4F1 /* Build configuration list for PBXNativeTarget "DMTemplates" */;
 			buildPhases = (
-				8DD76F990486AA7600D96B5E /* Sources */,
-				8DD76F9B0486AA7600D96B5E /* Frameworks */,
-				8DD76F9E0486AA7600D96B5E /* CopyFiles */,
+				DA58263E195E65FC008CF4F1 /* Sources */,
+				DA58263F195E65FC008CF4F1 /* Frameworks */,
+				DA582640195E65FC008CF4F1 /* CopyFiles */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = DMTemplate;
-			productInstallPath = "$(HOME)/bin";
-			productName = DMTemplate;
-			productReference = 8DD76FA10486AA7600D96B5E /* dmtemplate */;
+			name = DMTemplates;
+			productName = DMTemplates;
+			productReference = DA582642195E65FC008CF4F1 /* dmtemplates */;
 			productType = "com.apple.product-type.tool";
 		};
-		DAE7ED5312078F59003260CF /* Tests */ = {
+		DA58265D195E6D0A008CF4F1 /* Tests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DAE7ED5912078F5A003260CF /* Build configuration list for PBXNativeTarget "Tests" */;
+			buildConfigurationList = DA58266C195E6D0A008CF4F1 /* Build configuration list for PBXNativeTarget "Tests" */;
 			buildPhases = (
-				DAE7ED4F12078F59003260CF /* Resources */,
-				DAE7ED5012078F59003260CF /* Sources */,
-				DAE7ED5112078F59003260CF /* Frameworks */,
-				DAE7ED5212078F59003260CF /* ShellScript */,
+				DA58265A195E6D0A008CF4F1 /* Sources */,
+				DA58265B195E6D0A008CF4F1 /* Frameworks */,
+				DA58265C195E6D0A008CF4F1 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				DA58266B195E6D0A008CF4F1 /* PBXTargetDependency */,
 			);
 			name = Tests;
-			productName = Tests;
-			productReference = DAE7ED5412078F59003260CF /* Tests.octest */;
-			productType = "com.apple.product-type.bundle";
+			productName = "DMTemplates Tests";
+			productReference = DA58265E195E6D0A008CF4F1 /* Tests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		08FB7793FE84155DC02AAC07 /* Project object */ = {
+		DA58263A195E65FC008CF4F1 /* Project object */ = {
 			isa = PBXProject;
-			buildConfigurationList = 1DEB927808733DD40010E9CD /* Build configuration list for PBXProject "DMTemplates" */;
-			compatibilityVersion = "Xcode 3.1";
-			hasScannedForEncodings = 1;
-			mainGroup = 08FB7794FE84155DC02AAC07 /* DMTemplate */;
+			attributes = {
+				LastUpgradeCheck = 0510;
+				ORGANIZATIONNAME = "Turncolor, Inc.";
+				TargetAttributes = {
+					DA58265D195E6D0A008CF4F1 = {
+						TestTargetID = DA582641195E65FC008CF4F1;
+					};
+				};
+			};
+			buildConfigurationList = DA58263D195E65FC008CF4F1 /* Build configuration list for PBXProject "DMTemplates" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = DA582639195E65FC008CF4F1;
+			productRefGroup = DA582643195E65FC008CF4F1 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				8DD76F960486AA7600D96B5E /* DMTemplate */,
-				DAE7ED5312078F59003260CF /* Tests */,
+				DA582641195E65FC008CF4F1 /* DMTemplates */,
+				DA58265D195E6D0A008CF4F1 /* Tests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		DAE7ED4F12078F59003260CF /* Resources */ = {
+		DA58265C195E6D0A008CF4F1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DA582677195E7ABF008CF4F1 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		DAE7ED5212078F59003260CF /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Run the unit tests in this test bundle.\n\"${SYSTEM_DEVELOPER_DIR}/Tools/RunUnitTests\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
-		8DD76F990486AA7600D96B5E /* Sources */ = {
+		DA58263E195E65FC008CF4F1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DACC9CE311FFFC1400191036 /* DMTemplateEngine.m in Sources */,
-				DA9BA9901200B633002E267F /* main.m in Sources */,
+				DA58267A195E7B70008CF4F1 /* DMTemplateEngine.m in Sources */,
+				DA582655195E6682008CF4F1 /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		DAE7ED5012078F59003260CF /* Sources */ = {
+		DA58265A195E6D0A008CF4F1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DAE7ED5D12078FB9003260CF /* DMTemplateTests.m in Sources */,
-				DAE7EDAA12079182003260CF /* DMTemplateEngine.m in Sources */,
+				DA58267B195E7B70008CF4F1 /* DMTemplateEngine.m in Sources */,
+				DA582671195E7A89008CF4F1 /* DMTemplateTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		DA58266B195E6D0A008CF4F1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DA582641195E65FC008CF4F1 /* DMTemplates */;
+			targetProxy = DA58266A195E6D0A008CF4F1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		DA582675195E7ABF008CF4F1 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				DA582676195E7ABF008CF4F1 /* en */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
 /* Begin XCBuildConfiguration section */
-		1DEB927508733DD40010E9CD /* Debug */ = {
+		DA58264E195E65FC008CF4F1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = Source/prefix.pch;
-				INSTALL_PATH = /usr/local/bin;
-				PRODUCT_NAME = dmtemplate;
-			};
-			name = Debug;
-		};
-		1DEB927608733DD40010E9CD /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				GCC_MODEL_TUNING = G5;
-				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = Source/prefix.pch;
-				INSTALL_PATH = /usr/local/bin;
-				PRODUCT_NAME = dmtemplate;
-			};
-			name = Release;
-		};
-		1DEB927908733DD40010E9CD /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				GCC_C_LANGUAGE_STANDARD = gnu99;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				ONLY_ACTIVE_ARCH = YES;
-				PREBINDING = NO;
-				SDKROOT = macosx10.6;
-			};
-			name = Debug;
-		};
-		1DEB927A08733DD40010E9CD /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
-				GCC_C_LANGUAGE_STANDARD = gnu99;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				PREBINDING = NO;
-				SDKROOT = macosx10.6;
-			};
-			name = Release;
-		};
-		DAE7ED5712078F5A003260CF /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
-				FRAMEWORK_SEARCH_PATHS = "$(DEVELOPER_LIBRARY_DIR)/Frameworks";
 				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
-				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = "$(SYSTEM_LIBRARY_DIR)/Frameworks/Cocoa.framework/Headers/Cocoa.h";
-				INFOPLIST_FILE = Tests/TestsInfo.plist;
-				INSTALL_PATH = "$(USER_LIBRARY_DIR)/Bundles";
-				OTHER_LDFLAGS = (
-					"-framework",
-					Cocoa,
-					"-framework",
-					SenTestingKit,
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
 				);
-				PREBINDING = NO;
-				PRODUCT_NAME = Tests;
-				WRAPPER_EXTENSION = octest;
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
 			};
 			name = Debug;
 		};
-		DAE7ED5812078F5A003260CF /* Release */ = {
+		DA58264F195E65FC008CF4F1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				FRAMEWORK_SEARCH_PATHS = "$(DEVELOPER_LIBRARY_DIR)/Frameworks";
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
-				GCC_MODEL_TUNING = G5;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		DA582651195E65FC008CF4F1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = "$(SYSTEM_LIBRARY_DIR)/Frameworks/Cocoa.framework/Headers/Cocoa.h";
-				INFOPLIST_FILE = Tests/TestsInfo.plist;
-				INSTALL_PATH = "$(USER_LIBRARY_DIR)/Bundles";
-				OTHER_LDFLAGS = (
-					"-framework",
-					Cocoa,
-					"-framework",
-					SenTestingKit,
+				GCC_PREFIX_HEADER = Source/Prefix.pch;
+				PRODUCT_NAME = dmtemplates;
+			};
+			name = Debug;
+		};
+		DA582652195E65FC008CF4F1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = Source/Prefix.pch;
+				PRODUCT_NAME = dmtemplates;
+			};
+			name = Release;
+		};
+		DA58266D195E6D0A008CF4F1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(DEVELOPER_FRAMEWORKS_DIR)",
+					"$(inherited)",
 				);
-				PREBINDING = NO;
-				PRODUCT_NAME = Tests;
-				WRAPPER_EXTENSION = octest;
-				ZERO_LINK = NO;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = Tests/Prefix.pch;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = Tests/Info.plist;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WRAPPER_EXTENSION = xctest;
+			};
+			name = Debug;
+		};
+		DA58266E195E6D0A008CF4F1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(DEVELOPER_FRAMEWORKS_DIR)",
+					"$(inherited)",
+				);
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = Tests/Prefix.pch;
+				INFOPLIST_FILE = Tests/Info.plist;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WRAPPER_EXTENSION = xctest;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		1DEB927408733DD40010E9CD /* Build configuration list for PBXNativeTarget "DMTemplate" */ = {
+		DA58263D195E65FC008CF4F1 /* Build configuration list for PBXProject "DMTemplates" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				1DEB927508733DD40010E9CD /* Debug */,
-				1DEB927608733DD40010E9CD /* Release */,
+				DA58264E195E65FC008CF4F1 /* Debug */,
+				DA58264F195E65FC008CF4F1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1DEB927808733DD40010E9CD /* Build configuration list for PBXProject "DMTemplates" */ = {
+		DA582650195E65FC008CF4F1 /* Build configuration list for PBXNativeTarget "DMTemplates" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				1DEB927908733DD40010E9CD /* Debug */,
-				1DEB927A08733DD40010E9CD /* Release */,
+				DA582651195E65FC008CF4F1 /* Debug */,
+				DA582652195E65FC008CF4F1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
 		};
-		DAE7ED5912078F5A003260CF /* Build configuration list for PBXNativeTarget "Tests" */ = {
+		DA58266C195E6D0A008CF4F1 /* Build configuration list for PBXNativeTarget "Tests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				DAE7ED5712078F5A003260CF /* Debug */,
-				DAE7ED5812078F5A003260CF /* Release */,
+				DA58266D195E6D0A008CF4F1 /* Debug */,
+				DA58266E195E6D0A008CF4F1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = 08FB7793FE84155DC02AAC07 /* Project object */;
+	rootObject = DA58263A195E65FC008CF4F1 /* Project object */;
 }
