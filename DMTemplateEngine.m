@@ -78,7 +78,7 @@ DMTemplateBlockType;
 
 @interface DMTemplateEngine (Strings)
 + (NSString*)_stringByEscapingXMLEntities:(NSString*)string;
-+ (NSString*)_stringWithReadableByteSize:(unsigned long long)bytes;
++ (NSString*)_stringWithReadableByteSize:(long long)bytes;
 + (NSString*)_stringByAddingPercentEscapes:(NSString*)string;
 + (NSString*)_stringByRemovingCharactersFromSet:(NSCharacterSet*)set string:(NSString*)string;
 + (NSString*)_stringByTrimmingWhitespace:(NSString*)string;
@@ -925,41 +925,8 @@ DMTemplateBlockType;
 
 @implementation DMTemplateEngine (Strings)
 
-+ (NSString*)_stringWithReadableByteSize:(unsigned long long)bytes {
-	double kb, mb, gb, tb, pb;
-	
-	// Handle bytes
-	if(bytes < 1000) {
-		return [NSString stringWithFormat:@"%d B", (int)bytes];
-	}
-	
-	// Handle kilobytes
-	kb = bytes / 1024.0;
-	if(kb < 1000.0) {
-		return [NSString stringWithFormat:@"%0.1f KB", kb];
-	}
-	
-	// Handle megabytes
-	mb = kb / 1024.0;
-	if(mb < 1000.0) {
-		return [NSString stringWithFormat:@"%0.1f MB", mb];
-	}
-	
-	// Handle gigabytes
-	gb = mb / 1024.0;
-	if(gb < 1000.0) {
-		return [NSString stringWithFormat:@"%0.1f GB", gb];
-	}
-	
-	// Handle terabytes
-	tb = gb / 1024.0;
-	if(tb < 1000.0) {
-		return [NSString stringWithFormat:@"%0.1f TB", tb];
-	}
-	
-	// Handle petabytes
-	pb = tb / 1024.0;
-	return [NSString stringWithFormat:@"%0.1f PB", pb];
++ (NSString*)_stringWithReadableByteSize:(long long)bytes {
+	return [NSByteCountFormatter stringFromByteCount:bytes countStyle:NSByteCountFormatterCountStyleFile];
 }
 
 + (NSString*)_stringByEscapingXMLEntities:(NSString*)string {
