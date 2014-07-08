@@ -49,25 +49,25 @@
 	NSMutableDictionary* templateData = [NSMutableDictionary dictionary];
 	
 	// Test human readable byte size modifier.
-	_engine.template = @"{%[b] fileSize %}";
+	_engine.template = @"{%[  b ] fileSize %}";
 	
 	[templateData setObject:@"0" forKey:@"fileSize"];
-	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"0 B", @"Zero bytes should be handled.");
+	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"Zero KB", @"Zero bytes should be handled.");
 	
 	[templateData setObject:@"51" forKey:@"fileSize"];
-	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"51 B", @"Bytes should be handled.");
+	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"51 bytes", @"Bytes should be handled.");
 	
 	[templateData setObject:@"2300" forKey:@"fileSize"];
-	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"2.2 KB", @"Kilobytes should be handled.");
+	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"2 KB", @"Kilobytes should be handled.");
 	
 	[templateData setObject:@"2034421" forKey:@"fileSize"];
 	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"1.9 MB", @"Megabytes should be handled.");
 	
 	[templateData setObject:@"9824958720" forKey:@"fileSize"];
-	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"9.2 GB", @"Gigabytes should be handled.");
+	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"9.15 GB", @"Gigabytes should be handled.");
 	
 	[templateData setObject:@"89823871822003" forKey:@"fileSize"];
-	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"81.7 TB", @"Terabytes should be handled.");
+	XCTAssertEqualObjects([_engine renderAgainst:templateData], @"81.69 TB", @"Terabytes should be handled.");
 	
 	// Test URL encoding modifier.
 	_engine.template = @"{%[u] name %}";

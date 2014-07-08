@@ -80,9 +80,7 @@ DMTemplateBlockType;
 + (NSString*)_stringByEscapingXMLEntities:(NSString*)string;
 + (NSString*)_stringWithReadableByteSize:(long long)bytes;
 + (NSString*)_stringByAddingPercentEscapes:(NSString*)string;
-+ (NSString*)_stringByRemovingCharactersFromSet:(NSCharacterSet*)set string:(NSString*)string;
 + (NSString*)_stringByTrimmingWhitespace:(NSString*)string;
-+ (void)_removeCharactersInSet:(NSCharacterSet*)set string:(NSMutableString*)string;
 @end
 
 #pragma mark -
@@ -647,14 +645,15 @@ DMTemplateBlockType;
 		optionsRange.length = optionsRange.location-1;
 		optionsRange.location = 1;
 		
-		NSString* optionsContent = [content substringWithRange:optionsRange];
-		optionsContent = [DMTemplateEngine _stringByRemovingCharactersFromSet:[NSCharacterSet whitespaceAndNewlineCharacterSet] string:optionsContent];
-		optionsContent = [optionsContent lowercaseString];
+		NSString* optionsContent = [[content substringWithRange:optionsRange] lowercaseString];
 		
 		for(NSUInteger i = 0; i < [optionsContent length]; i++) {
 			unichar modifierChar = [optionsContent characterAtIndex:i];
-			NSString* modifierString = [NSString stringWithCharacters:&modifierChar length:1];
-			[tagInfo.modifiers addObject:modifierString];
+			if([[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:modifierChar]) {
+				continue;
+			}
+			
+			[tagInfo.modifiers addObject:[NSString stringWithCharacters:&modifierChar length:1]];
 		}
 		
 		content = [content substringFromIndex:NSMaxRange(optionsRange)+1];
@@ -926,7 +925,7 @@ DMTemplateBlockType;
 @implementation DMTemplateEngine (Strings)
 
 + (NSString*)_stringWithReadableByteSize:(long long)bytes {
-	return [NSByteCountFormatter stringFromByteCount:bytes countStyle:NSByteCountFormatterCountStyleFile];
+	return [NSByteCountFormatter stringFromByteCount:bytes countStyle:NSByteCountFormatterCountStyleBinary];
 }
 
 + (NSString*)_stringByEscapingXMLEntities:(NSString*)string {
@@ -958,48 +957,8 @@ DMTemplateBlockType;
 	return [(NSString*)CFURLCreateStringByAddingPercentEscapes(NULL, (CFStringRef)string, CFSTR(""), CFSTR("/"), kCFStringEncodingUTF8) autorelease];
 }
 
-+ (NSString*)_stringByRemovingCharactersFromSet:(NSCharacterSet*)set string:(NSString*)string {
-	NSMutableString* result;
-	
-	if([string rangeOfCharacterFromSet:set options:NSLiteralSearch].length == 0) {
-		return string;
-	}
-	
-	result = [[string mutableCopyWithZone:[string zone]] autorelease];
-	[self _removeCharactersInSet:set string:result];
-	
-	return result;
-}
-
 + (NSString*)_stringByTrimmingWhitespace:(NSString*)string {
 	return [string stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-}
-
-+ (void)_removeCharactersInSet:(NSCharacterSet*)set string:(NSMutableString*)string {
-	NSRange matchRange, searchRange, replaceRange;
-	NSUInteger length = [string length];
-	
-	matchRange = [string rangeOfCharacterFromSet:set options:NSLiteralSearch range:NSMakeRange(0, length)];
-	while(matchRange.length > 0) {
-		replaceRange = matchRange;
-		searchRange.location = NSMaxRange(replaceRange);
-		searchRange.length = length - searchRange.location;
-		
-		while(YES) {
-			matchRange = [string rangeOfCharacterFromSet:set options:NSLiteralSearch range:searchRange];
-			if((matchRange.length == 0) || (matchRange.location != searchRange.location)) {
-				break;
-			}
-			
-			replaceRange.length += matchRange.length;
-			searchRange.length -= matchRange.length;
-			searchRange.location += matchRange.length;
-		}
-		
-		[string deleteCharactersInRange:replaceRange];
-		matchRange.location -= replaceRange.length;
-		length -= replaceRange.length;
-	}
 }
 
 @end
