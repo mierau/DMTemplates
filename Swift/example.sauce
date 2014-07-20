@@ -1,0 +1,14 @@
+{% if(people.@count == 0) %}
+No people to be found.
+{% else if(people.@count == 1) %}
+{% var person = people[0] %}
+Just one person: {% person.first %} {% person.last %}
+{% else %}
+{% people.@count %} People:
+
+  {% foreach(person in people) %}
+  {% personIndex + 1 %}: {% person["first"] %} {% FUNCTION(person["last"], "uppercaseString") %}, {% person.age %}
+  {% end %}
+
+Average age is {% people.@avg.age %}
+{% end %}
