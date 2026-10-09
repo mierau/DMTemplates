@@ -86,7 +86,7 @@ extension ExpressionCode {
       mutating func add(_ expr: Expr) -> Int32 {
          switch expr {
          case .literal(let value):
-            return append(.literal(value: append(value, to: &values)))
+            return append(.literal(value: Self.append(value, to: &values)))
          case .root:
             return append(.root)
          case .local(let slot):
@@ -118,13 +118,13 @@ extension ExpressionCode {
             return append(.comparison(op, options, l, add(rhs)))
          case .function(let function, let receiver, let arguments):
             let span = addOperands([receiver] + arguments)
-            return append(.function(append(function, to: &functions), span))
+            return append(.function(Self.append(function, to: &functions), span))
          }
       }
 
       private mutating func add(_ step: PathStep) -> Step {
          switch step {
-         case .key(let key): return .key(string: append(key, to: &strings))
+         case .key(let key): return .key(string: Self.append(key, to: &strings))
          case .index(let index): return .index(add(index))
          case .first: return .first
          case .last: return .last
@@ -141,10 +141,13 @@ extension ExpressionCode {
       }
 
       private mutating func append(_ operation: Operation) -> Int32 {
-         append(operation, to: &operations)
+         Self.append(operation, to: &operations)
       }
 
-      private func append<T>(_ element: T, to array: inout [T]) -> Int32 {
+      // Static on purpose: calling an instance method while passing one of
+      // self's arrays inout makes Swift copy self, so the array is no longer
+      // uniquely referenced and every append copies it.
+      private static func append<T>(_ element: T, to array: inout [T]) -> Int32 {
          array.append(element)
          return Int32(array.count - 1)
       }
