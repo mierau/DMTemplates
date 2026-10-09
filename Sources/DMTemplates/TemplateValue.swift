@@ -12,6 +12,8 @@ public enum TemplateValue: Sendable, Hashable {
    case int(Int)
    case double(Double)
    case string(String)
+   /// Renders in ISO 8601, or as asked with `as`: `{% post.date as date %}`.
+   case date(Date)
    case array([TemplateValue])
    case dictionary([String: TemplateValue])
 }
@@ -20,7 +22,7 @@ public enum TemplateValue: Sendable, Hashable {
 
 extension TemplateValue {
    /// Converts Foundation and Swift values (dictionaries, arrays, strings,
-   /// numbers, NSNull, property list objects, JSON objects) into a
+   /// numbers, dates, NSNull, property list objects, JSON objects) into a
    /// template value. Anything unrecognized renders as its description.
    public init(any value: Any?) {
       guard let value else {
@@ -58,6 +60,9 @@ extension TemplateValue {
       else if type == Double.self {
          self = .double(value as! Double)
       }
+      else if let v = value as? Date {
+         self = .date(v)
+      }
       else if value is NSNull {
          self = .null
       }
@@ -79,7 +84,7 @@ extension TemplateValue {
    }
 
    /// Converts any Encodable value (a struct, an array of structs), seeing it
-   /// the way JSONEncoder would.
+   /// the way JSONEncoder would, except that dates stay dates.
    public init<T: Encodable>(encoding value: T) throws {
       self = try TemplateValueEncoder.encode(value)
    }
@@ -134,6 +139,7 @@ extension TemplateValue: Codable {
       case .int(let v): try container.encode(v)
       case .double(let v): try container.encode(v)
       case .string(let v): try container.encode(v)
+      case .date(let v): try container.encode(v)
       case .array(let v): try container.encode(v)
       case .dictionary(let v): try container.encode(v)
       }
@@ -174,6 +180,8 @@ extension TemplateValue {
          return String(v)
       case .string(let v):
          return v
+      case .date(let v):
+         return v.formatted(.iso8601)
       case .array(let v):
          return v.map(\.renderedString).joined(separator: ", ")
       case .dictionary(let v):
@@ -189,6 +197,7 @@ extension TemplateValue {
       case .int(let v): return v != 0
       case .double(let v): return v != 0
       case .string(let v): return !v.isEmpty
+      case .date: return true
       case .array(let v): return !v.isEmpty
       case .dictionary(let v): return !v.isEmpty
       }

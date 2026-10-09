@@ -18,7 +18,7 @@ public struct Template: Sendable {
 
    public init(_ source: String, options: TemplateOptions = TemplateOptions()) throws {
       let parsed = try TemplateParser.parse(source, options: options)
-      self.program = Program(parsed, log: options.log)
+      self.program = Program(parsed, options: options)
    }
 
    public init(contentsOf url: URL, options: TemplateOptions = TemplateOptions()) throws {
@@ -72,6 +72,17 @@ public struct TemplateOptions: Sendable {
          }
       }
    }
+
+   /// The locale `as` formats use, for things like month names and number
+   /// separators. Default: the current locale.
+   public var locale = Locale.current
+
+   /// The time zone `as` shows dates in. Default: the current time zone.
+   public var timeZone = TimeZone.current
+
+   /// The currency `as currency` shows, as an ISO 4217 code such as "EUR".
+   /// Default: the locale's currency, or "USD" when it has none.
+   public var currencyCode: String?
 
    /// Receives output from `log(...)` tags. Default: standard error.
    public var log: @Sendable (String) -> Void = { message in

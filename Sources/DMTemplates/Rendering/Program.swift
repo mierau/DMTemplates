@@ -12,8 +12,9 @@ final class Program: @unchecked Sendable {
    enum Instruction {
       /// Writes `text[range]`.
       case text(Span)
-      /// Writes an expression's value, passed through `modifiers[range]`.
-      case value(ExpressionRef, modifiers: Span)
+      /// Writes an expression's value, shown with `formatters[format]` if it
+      /// has one, then passed through `modifiers[range]`.
+      case value(ExpressionRef, modifiers: Span, format: Int32?)
       /// Continues if the expression is truthy, otherwise jumps to `otherwise`.
       case branch(ExpressionRef, otherwise: Int32)
       case jump(Int32)
@@ -37,27 +38,30 @@ final class Program: @unchecked Sendable {
    private let instructions: UnsafeMutableBufferPointer<Instruction>
    private let text: UnsafeMutableBufferPointer<UInt8>
    private let modifiers: UnsafeMutableBufferPointer<Modifier>
+   private let formatters: UnsafeMutableBufferPointer<ValueFormatter>
    private let custom: UnsafeMutableBufferPointer<any CompiledExpression>
    private let code: ExpressionCode
    private let localCount: Int
    private let log: @Sendable (String) -> Void
 
-   init(_ template: ParsedTemplate, log: @escaping @Sendable (String) -> Void) {
-      var builder = Builder()
+   init(_ template: ParsedTemplate, options: TemplateOptions) {
+      var builder = Builder(options: options)
       builder.add(template.nodes)
       self.instructions = .copying(builder.instructions)
       self.text = .copying(builder.text)
       self.modifiers = .copying(builder.modifiers)
+      self.formatters = .copying(builder.formatters)
       self.custom = .copying(builder.custom)
       self.code = ExpressionCode(builder.code)
       self.localCount = template.localCount
-      self.log = log
+      self.log = options.log
    }
 
    deinit {
       instructions.release()
       text.release()
       modifiers.release()
+      formatters.release()
       custom.release()
    }
 
@@ -90,10 +94,10 @@ final class Program: @unchecked Sendable {
             output.append(contentsOf: UnsafeBufferPointer(rebasing: text[span.range]))
             pc += 1
 
-         case .value(let expression, let modifierSpan):
+         case .value(let expression, let modifierSpan, let format):
             let value = evaluate(expression)
             if value != .null {
-               var string = value.renderedString
+               var string = format.flatMap { formatters[Int($0)].format(value) } ?? value.renderedString
                for i in modifierSpan.range {
                   string = modifiers[i].apply(string)
                }
@@ -147,11 +151,21 @@ final class Program: @unchecked Sendable {
 
    /// Compiles template nodes into instructions.
    private struct Builder {
+      let options: TemplateOptions
       var instructions: [Instruction] = []
       var text: [UInt8] = []
       var modifiers: [Modifier] = []
+      var formatters: [ValueFormatter] = []
       var custom: [any CompiledExpression] = []
       var code = ExpressionCode.Builder()
+
+      /// Formatters already made, so tags that share a format share a
+      /// formatter. Foundation's formatters are slow to create.
+      private var formatterIndexes: [Format: Int32] = [:]
+
+      init(options: TemplateOptions) {
+         self.options = options
+      }
 
       /// The index the next instruction will get.
       private var next: Int32 { Int32(instructions.count) }
@@ -168,10 +182,10 @@ final class Program: @unchecked Sendable {
             instructions.append(.text(Span(start: text.count, count: string.utf8.count)))
             text.append(contentsOf: string.utf8)
 
-         case .value(let expression, let nodeModifiers):
+         case .value(let expression, let nodeModifiers, let format):
             let span = Span(start: modifiers.count, count: nodeModifiers.count)
             modifiers.append(contentsOf: nodeModifiers)
-            instructions.append(.value(add(expression), modifiers: span))
+            instructions.append(.value(add(expression), modifiers: span, format: format.map { add($0) }))
 
          case .conditional(let branches, let otherwise):
             // Each branch tests its condition and skips to the next branch when
@@ -204,6 +218,16 @@ final class Program: @unchecked Sendable {
          case .log(let expression):
             instructions.append(.log(add(expression)))
          }
+      }
+
+      private mutating func add(_ format: Format) -> Int32 {
+         if let index = formatterIndexes[format] {
+            return index
+         }
+         let index = Int32(formatters.count)
+         formatters.append(ValueFormatter(format, options: options))
+         formatterIndexes[format] = index
+         return index
       }
 
       private mutating func add(_ expression: TagExpression) -> ExpressionRef {

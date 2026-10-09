@@ -77,6 +77,33 @@ Inside a loop, the current index is available as the loop variable's name follow
       Contact {% contactIndex + 1 %}: {% contact.firstName %}
     {% endforeach %}
 
+## Formatting
+Add `as` and a format to a value tag to show a date or number for people:
+
+    Posted {% post.date as date %} at {% post.date as time %}
+    Updated {% post.updated as relative %}
+    Total: {% order.total as currency %}
+
+The named formats are:
+
+* `date`, `time` and `datetime`, as in `Oct 9, 2025` and `1:53 AM`.
+* `relative`, as in `2 days ago`.
+* `iso8601`, as in `2025-10-09T08:53:20Z`, which is also how dates render without a format.
+* `number`, `percent` and `currency`, as in `1,234.5`, `25%` and `$1,234.50`.
+
+For anything else, give a pattern in quotes: a date pattern like `"MMM d, yyyy"` or a number pattern like `"#,##0.00"`, written the way DateFormatter and NumberFormatter take them.
+
+    {% post.date as "EEEE, MMMM d" %}
+    {% item.weight as "0.0" %} kg
+
+Formats follow `TemplateOptions.locale`, `timeZone` and `currencyCode`, which default to the current locale, the current time zone and the locale's currency:
+
+    var options = TemplateOptions()
+    options.locale = Locale(identifier: "fr_FR")
+    options.currencyCode = "EUR"
+
+Dates can be `Date` values, ISO 8601 strings such as `"2025-10-09T08:53:20Z"` or `"2025-10-09"`, or numbers of seconds since 1970, so dates in JSON work too. They also compare with `<`, `>` and the rest, and work with `@min` and `@max`. A value a format doesn't fit, such as a name formatted `as date`, renders as usual. Modifiers apply after formatting.
+
 ## Modifiers
 Modifiers process a value before it's rendered. List them by character in square brackets at the start of a value tag; they apply in order.
 

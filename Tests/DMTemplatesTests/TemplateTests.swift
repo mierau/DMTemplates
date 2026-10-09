@@ -425,6 +425,14 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(error("{%[z] name %}")?.message == "Unknown modifier 'z'")
    }
 
+   @Test func unknownFormat() throws {
+      let problem = try #require(error("one\n{% when as month %}"))
+      #expect(problem.line == 2)
+      #expect(problem.column == 12)
+      #expect(problem.message.hasPrefix("Unknown format 'month'"))
+      #expect(error(#"{% when as "" %}"#) != nil)
+   }
+
    @Test func badExpressionsReportPosition() throws {
       let problem = try #require(error("line one\nsecond {% a + %}"))
       #expect(problem.line == 2)
@@ -556,6 +564,14 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       }
       let template = try Template("{% super.name %} {% tricks[0] %}")
       #expect(try template.render(encoding: Dog()) == "Rex sit")
+   }
+
+   @Test func datesStayDates() throws {
+      struct Post: Encodable { let date: Date }
+      let date = Date(timeIntervalSince1970: 1_760_000_000)
+      #expect(try TemplateValue(encoding: Post(date: date)) == ["date": .date(date)])
+      #expect(TemplateValue(any: ["date": date] as [String: Any]) == ["date": .date(date)])
+      #expect(try Template("{% date %}").render(["date": .date(date)]) == "2025-10-09T08:53:20Z")
    }
 
    @Test func decodingKeepsTypes() throws {
@@ -699,8 +715,118 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(template.render(context) == " ")
    }
 
+   @Test func formatPatterns() throws {
+      var options = TemplateOptions()
+      options.locale = Locale(identifier: "en_US")
+      options.timeZone = TimeZone(identifier: "UTC")!
+      let template = try Template("{% post.date as \"EEEE, MMMM d\" %} {% item.weight as \"0.0\" %} kg", options: options)
+      #expect(template.render(["post": ["date": "2025-10-09"], "item": ["weight": 2.5]]) == "Thursday, October 9 2.5 kg")
+   }
+
    @Test func loopIndex() throws {
       let template = try Template("{% foreach(contact in contacts) %}{% contactIndex + 1 %}:{% contact %} {% endforeach %}")
       #expect(template.render(["contacts": ["a", "b"]]) == "1:a 2:b ")
+   }
+}
+
+@Suite struct FormatTests {
+   /// 2025-10-09 08:53:20 UTC, which is 1:53 AM in Los Angeles.
+   let moment = Date(timeIntervalSince1970: 1_760_000_000)
+
+   var options: TemplateOptions {
+      var options = TemplateOptions()
+      options.locale = Locale(identifier: "en_US")
+      options.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+      return options
+   }
+
+   @Test func datesRenderAsISO8601ByDefault() throws {
+      #expect(try render("{% when %}", ["when": .date(moment)]) == "2025-10-09T08:53:20Z")
+   }
+
+   @Test func dateStyles() throws {
+      let locale = options.locale
+      let zone = options.timeZone
+      let cases: [(String, String)] = [
+         ("date", moment.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: locale, timeZone: zone))),
+         ("time", moment.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, timeZone: zone))),
+         ("datetime", moment.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: locale, timeZone: zone))),
+         ("iso8601", "2025-10-09T08:53:20Z"),
+      ]
+      for (style, expected) in cases {
+         #expect(try render("{% when as \(style) %}", ["when": .date(moment)], options: options) == expected)
+      }
+      #expect(try render("{% when as date %}", ["when": .date(moment)], options: options) == "Oct 9, 2025")
+   }
+
+   @Test func relativeDates() throws {
+      let twoDaysAgo = Date().addingTimeInterval(-2 * 24 * 60 * 60)
+      #expect(try render("{% when as relative %}", ["when": .date(twoDaysAgo)], options: options) == "2 days ago")
+   }
+
+   @Test func datePatterns() throws {
+      let context: TemplateValue = ["when": .date(moment)]
+      #expect(try render("{% when as \"yyyy-MM-dd\" %}", context, options: options) == "2025-10-09")
+      #expect(try render("{% when as \"MMM d, yyyy 'at' h:mm a\" %}", context, options: options) == "Oct 9, 2025 at 1:53 AM")
+      #expect(try render("{% when as 'EEEE' %}", context, options: options) == "Thursday")
+   }
+
+   @Test func datesFromStringsAndNumbers() throws {
+      let context: TemplateValue = [
+         "stamp": "2025-10-09T08:53:20Z",
+         "fraction": "2025-10-09T08:53:20.250Z",
+         "offset": "2025-10-09T10:53:20+02:00",
+         "day": "2025-10-09",
+         "seconds": 1_760_000_000,
+      ]
+      let template = try Template("{% stamp as \"HH:mm\" %} {% fraction as \"HH:mm\" %} {% offset as \"HH:mm\" %} {% day as \"MMM d\" %} {% seconds as \"HH:mm\" %}", options: options)
+      #expect(template.render(context) == "01:53 01:53 01:53 Oct 9 01:53")
+   }
+
+   @Test func numberStyles() throws {
+      let context: TemplateValue = ["big": 1234567.891, "share": 0.256, "price": 1234.5, "count": 1200, "text": "42.5"]
+      #expect(try render("{% big as number %}|{% share as percent %}|{% price as currency %}|{% count as number %}|{% text as number %}", context, options: options)
+         == "1,234,567.891|25.6%|$1,234.50|1,200|42.5")
+
+      var euros = options
+      euros.currencyCode = "EUR"
+      #expect(try render("{% price as currency %}", context, options: euros) == "€1,234.50")
+   }
+
+   @Test func numberPatterns() throws {
+      let context: TemplateValue = ["price": 1234.5, "count": 3, "loss": -2.5]
+      #expect(try render("{% price as \"#,##0.00\" %} {% count as \"0.0\" %} {% loss as \"0.00\" %}", context, options: options) == "1,234.50 3.0 -2.50")
+   }
+
+   @Test func valuesAFormatDoesNotFitRenderAsUsual() throws {
+      #expect(try render("[{% name as date %}] [{% name as number %}] [{% missing as date %}]", ["name": "Dustin"], options: options) == "[Dustin] [Dustin] []")
+   }
+
+   @Test func formatNamesIgnoreCaseAndModifiersApplyAfter() throws {
+      let context: TemplateValue = ["when": .date(moment), "name": "<b>"]
+      #expect(try render("{% when AS DATE %}", context, options: options) == "Oct 9, 2025")
+      #expect(try render("{%[u] when as \"yyyy-MM-dd HH:mm\" %}", context, options: options) == "2025-10-09%2001%3A53")
+   }
+
+   @Test func asInsideStringsIsText() throws {
+      #expect(try render(#"{% "this as that" %}"#) == "this as that")
+   }
+
+   @Test func datesCompareAndAggregate() throws {
+      let earlier = moment.addingTimeInterval(-60)
+      let context: TemplateValue = ["a": .date(earlier), "b": .date(moment), "posts": [["date": .date(earlier)], ["date": .date(moment)]]]
+      #expect(try render("{% if(a < b) %}before{% endif %} {% posts.@max.date as \"HH:mm\" %}", context, options: options) == "before 01:53")
+   }
+
+   @Test func formattingFromManyThreads() async throws {
+      let template = try Template("{% when as \"yyyy-MM-dd HH:mm\" %} {% price as \"#,##0.00\" %}", options: options)
+      let context: TemplateValue = ["when": .date(moment), "price": 1234.5]
+      let outputs = await withTaskGroup(of: Set<String>.self) { group in
+         for _ in 0..<8 {
+            group.addTask { Set((0..<200).map { _ in template.render(context) }) }
+         }
+         return await group.reduce(into: Set<String>()) { $0.formUnion($1) }
+      }
+      #expect(outputs == ["2025-10-09 01:53 1,234.50"])
    }
 }
