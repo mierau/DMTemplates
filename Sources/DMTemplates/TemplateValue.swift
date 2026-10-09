@@ -20,49 +20,68 @@ public enum TemplateValue: Sendable, Hashable {
 
 extension TemplateValue {
    /// Converts Foundation and Swift values (dictionaries, arrays, strings,
-   /// numbers, NSNull, property list objects, JSON objects) into a template value.
-   /// Anything unrecognized renders as its description.
+   /// numbers, NSNull, property list objects, JSON objects) into a
+   /// template value. Anything unrecognized renders as its description.
    public init(any value: Any?) {
       guard let value else {
          self = .null
          return
       }
 
+      // Strings and collections come first. Casting a Swift collection to a
+      // class such as NSNull or NSNumber bridges (copies) the whole thing, which
+      // made checking for those first many times slower.
       switch value {
-      case let v as TemplateValue:
-         self = v
-      case is NSNull:
-         self = .null
-      case let v as Bool where type(of: value) == Bool.self:
-         self = .bool(v)
-      case let v as Int where type(of: value) == Int.self:
-         self = .int(v)
-      case let v as Double where type(of: value) == Double.self:
-         self = .double(v)
       case let v as String:
          self = .string(v)
-      case let v as Substring:
-         self = .string(String(v))
-      case let v as NSNumber:
-         self = TemplateValue(number: v)
-      case let v as any BinaryInteger:
-         self = .int(Int(truncatingIfNeeded: v))
-      case let v as any BinaryFloatingPoint:
-         self = .double(Double(v))
       case let v as [String: Any]:
-         self = .dictionary(v.mapValues { TemplateValue(any: $0) })
+         self = .dictionary(v.mapValues(TemplateValue.init(any:)))
       case let v as [Any]:
-         self = .array(v.map { TemplateValue(any: $0) })
+         self = .array(v.map(TemplateValue.init(any:)))
+      case let v as TemplateValue:
+         self = v
       default:
+         self = TemplateValue(scalar: value)
+      }
+   }
+
+   private init(scalar value: Any) {
+      // Compare types exactly so a Bool never passes for a number, or a number
+      // for a Bool, through NSNumber bridging.
+      let type = type(of: value)
+      if type == Bool.self {
+         self = .bool(value as! Bool)
+      }
+      else if type == Int.self {
+         self = .int(value as! Int)
+      }
+      else if type == Double.self {
+         self = .double(value as! Double)
+      }
+      else if value is NSNull {
+         self = .null
+      }
+      else if let v = value as? NSNumber {
+         self = TemplateValue(number: v)
+      }
+      else if let v = value as? Substring {
+         self = .string(String(v))
+      }
+      else if let v = value as? any BinaryInteger {
+         self = Int(exactly: v).map { .int($0) } ?? .double(Double(v))
+      }
+      else if let v = value as? any BinaryFloatingPoint {
+         self = .double(Double(v))
+      }
+      else {
          self = .string(String(describing: value))
       }
    }
 
-   /// Converts any Encodable value (a struct, an array of structs) by
-   /// round-tripping through JSON.
+   /// Converts any Encodable value (a struct, an array of structs), seeing it
+   /// the way JSONEncoder would.
    public init<T: Encodable>(encoding value: T) throws {
-      let data = try JSONEncoder().encode(value)
-      self = try JSONDecoder().decode(TemplateValue.self, from: data)
+      self = try TemplateValueEncoder.encode(value)
    }
 
    private init(number: NSNumber) {
@@ -82,11 +101,13 @@ extension TemplateValue {
 extension TemplateValue: Codable {
    public init(from decoder: any Decoder) throws {
       let container = try decoder.singleValueContainer()
+      // Decoders can only be asked for a type and fail if it's wrong, and each
+      // failure builds an error, so the most common types go first.
       if container.decodeNil() {
          self = .null
       }
-      else if let v = try? container.decode(Bool.self) {
-         self = .bool(v)
+      else if let v = try? container.decode(String.self) {
+         self = .string(v)
       }
       else if let v = try? container.decode(Int.self) {
          self = .int(v)
@@ -94,14 +115,14 @@ extension TemplateValue: Codable {
       else if let v = try? container.decode(Double.self) {
          self = .double(v)
       }
-      else if let v = try? container.decode(String.self) {
-         self = .string(v)
+      else if let v = try? container.decode(Bool.self) {
+         self = .bool(v)
       }
-      else if let v = try? container.decode([TemplateValue].self) {
-         self = .array(v)
+      else if let v = try? container.decode([String: TemplateValue].self) {
+         self = .dictionary(v)
       }
       else {
-         self = .dictionary(try container.decode([String: TemplateValue].self))
+         self = .array(try container.decode([TemplateValue].self))
       }
    }
 
