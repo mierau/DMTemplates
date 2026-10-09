@@ -199,13 +199,19 @@ extension ComparisonOperator {
    }
 }
 
-/// Orders two values: -1, 0 or 1. Two strings compare as strings; otherwise
-/// both must read as numbers. Nil when the values can't be ordered.
+/// Orders two values: -1, 0 or 1. Two strings compare as strings and two dates
+/// as dates; otherwise both must read as numbers. Nil when the values can't be
+/// ordered.
 private func compareValues(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options: StringOptions) -> Int? {
-   if case .string(let a) = lhs, case .string(let b) = rhs {
+   switch (lhs, rhs) {
+   case (.string(let a), .string(let b)):
       let x = fold(a, options)
       let y = fold(b, options)
       return x == y ? 0 : (x < y ? -1 : 1)
+   case (.date(let a), .date(let b)):
+      return a == b ? 0 : (a < b ? -1 : 1)
+   default:
+      break
    }
 
    switch (lhs.number, rhs.number) {

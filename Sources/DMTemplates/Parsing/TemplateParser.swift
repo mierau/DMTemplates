@@ -12,7 +12,7 @@ struct ParsedTemplate {
 
 enum Node {
    case text(String)
-   case value(TagExpression, modifiers: [Modifier])
+   case value(TagExpression, modifiers: [Modifier], format: Format?)
    case conditional([Branch], otherwise: [Node]?)
    case loop(slot: Int, sequence: TagExpression, body: [Node])
    case log(TagExpression)
@@ -175,9 +175,10 @@ struct TemplateParser {
 
       let offset = content.lowerBound
       switch tag {
-      case .value(let expression):
+      case .value(let body):
+         let (expression, format) = try splitFormat(body)
          if !expression.isEmpty {
-            append(.value(try compile(expression), modifiers: modifiers))
+            append(.value(try compile(expression), modifiers: modifiers, format: format))
          }
          return false
 
@@ -236,6 +237,19 @@ struct TemplateParser {
       }
       content = source.trimmed((close + 1)..<content.upperBound)
       return parsed
+   }
+
+   /// Splits `value as format` into the value's expression and its format.
+   private func splitFormat(_ content: Range<Int>) throws -> (Range<Int>, Format?) {
+      guard let separator = source.findKeyword(" as ", in: content) else {
+         return (content, nil)
+      }
+      let formatRange = source.trimmed(separator.upperBound..<content.upperBound)
+      let text = source.text(formatRange)
+      guard let format = Format(text) else {
+         throw error("Unknown format '\(text)'. Use date, time, datetime, iso8601, relative, number, percent, currency, or a pattern in quotes", at: formatRange.lowerBound)
+      }
+      return (source.trimmed(content.lowerBound..<separator.lowerBound), format)
    }
 
    /// Identifies a tag by its keyword, ignoring case. Tags that take a

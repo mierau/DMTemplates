@@ -7,8 +7,8 @@ import Foundation
 /// Encodes Encodable values straight into template values.
 ///
 /// The result matches what JSONEncoder would produce with its default
-/// settings, read back as a template value. Skipping the round trip through
-/// JSON text makes it many times faster.
+/// settings, read back as a template value, except that dates stay dates.
+/// Skipping the round trip through JSON text makes it many times faster.
 enum TemplateValueEncoder {
    static func encode<T: Encodable>(_ value: T, codingPath: @autoclosure () -> [any CodingKey] = []) throws -> TemplateValue {
       if let converted = convert(value) {
@@ -20,7 +20,8 @@ enum TemplateValueEncoder {
    }
 
    /// Values that convert directly, either because they're simple or because
-   /// JSONEncoder treats them specially.
+   /// they'd encode themselves into something templates can't use, such as a
+   /// date as a count of seconds.
    private static func convert<T>(_ value: T) -> TemplateValue? {
       // Exact type checks keep a Bool from passing for a number, or the
       // reverse, through NSNumber bridging.
@@ -31,6 +32,7 @@ enum TemplateValueEncoder {
 
       switch value {
       case let v as TemplateValue: return v
+      case let v as Date: return .date(v)
       case let v as URL: return .string(v.absoluteString)
       case let v as Data: return .string(v.base64EncodedString())
       case let v as Decimal: return .double(NSDecimalNumber(decimal: v).doubleValue)
