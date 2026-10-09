@@ -1,0 +1,10 @@
+People
+======
+{% foreach(person in people) %}
+{% if(person.age >= 40) %}
+{% personIndex + 1 %}. {%[e] person.name %} ({% person.age %}) lives in {%[e] person.city %} and is {% person.age - 40 %} years past forty.
+{% else %}
+{% personIndex + 1 %}. {%[e] person.name %} is {% 40 - person.age %} years from forty.
+{% endif %}
+{% endforeach %}
+Total: {% people.@count %} people.
