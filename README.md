@@ -30,6 +30,8 @@ A context is a `TemplateValue`, which you can write as a literal, as above. You 
 
 Mistakes in a template, such as an unclosed `if` or a typo in an expression, throw a `TemplateError` with a line and column when the template is created, rather than surfacing while it renders.
 
+To load a template from a file, use `Template(contentsOf:)`. Tags are written between `{%` and `%}` by default; `TemplateOptions.beginDelimiter` and `endDelimiter` change them.
+
 ## Expressions
 Value tags, conditions and loops all take expressions, written in a syntax modeled on NSPredicate's:
 
@@ -41,7 +43,7 @@ Value tags, conditions and loops all take expressions, written in a syntax model
 * Logic: `AND`, `OR` and `NOT`, or `&&`, `||` and `!`.
 * Literals: strings, numbers, `true`/`false`/`YES`/`NO`, `nil`, and arrays written `{1, 2}` or `[1, 2]`.
 
-`LIKE`, `MATCHES`, `ANY`, `ALL` and `SUBQUERY` are not supported and are reported as errors.
+`LIKE`, `MATCHES`, `ANY`, `ALL`, `SOME`, `NONE`, `SUBQUERY`, `CAST` and `TERNARY` are not supported and are reported as errors.
 
 ## Conditions
 Templates support **if**, **elseif** and **else**, closed by **endif**. `else if` and a bare `end` work too.
