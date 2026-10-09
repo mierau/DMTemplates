@@ -8,3 +8,6 @@ xcuserdata
 
 # osx noise
 .DS_Store
+# swift package manager
+.build/
+.swiftpm/

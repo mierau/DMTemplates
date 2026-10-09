@@ -1,0 +1,17 @@
+{
+  "about": "My name is <b>Mike</b>",
+  "file": {
+    "fileSize": 2345234,
+    "name": "my_picture.jpg"
+  },
+  "url": "http://facebook.com/example_asdf?blah[]=23234:234",
+  "firstName": "Mike",
+  "lastName": "Tacos",
+  "friends": [
+    "Jill Arnet",
+    "Bob Blob",
+    "Sam Bog",
+    "Trent Wernt",
+    "Jack Dealy"
+  ]
+}
