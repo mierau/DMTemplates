@@ -518,6 +518,57 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(template.render(object: object) == "Dustin 42 true 3 1.5")
    }
 
+   @Test func encodableMatchesJSON() throws {
+      enum Shape: Codable { case circle(radius: Double), square(side: Int) }
+      enum Kind: String, Codable { case small, large }
+      struct Item: Codable {
+         let name: String
+         let nickname: String?
+         let tiny: Int8
+         let huge: UInt64
+         let ratio: Float
+         let kind: Kind
+         let shapes: [Shape]
+         let scores: [Int: String]
+         let tags: Set<String>
+         let link: URL
+         let blob: Data
+      }
+      let item = Item(name: "A", nickname: nil, tiny: -3, huge: .max, ratio: 0.1, kind: .large,
+                      shapes: [.circle(radius: 1.5), .square(side: 2)], scores: [1: "one"], tags: ["x"],
+                      link: URL(string: "https://example.com/a?b=c")!, blob: Data([1, 2, 3]))
+      let viaJSON = try JSONDecoder().decode(TemplateValue.self, from: JSONEncoder().encode(item))
+      #expect(try TemplateValue(encoding: item) == viaJSON)
+   }
+
+   @Test func encodableClassWithSuperclass() throws {
+      class Animal: Encodable {
+         let name = "Rex"
+      }
+      final class Dog: Animal {
+         let tricks = ["sit"]
+         private enum Keys: String, CodingKey { case tricks }
+         override func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: Keys.self)
+            try container.encode(tricks, forKey: .tricks)
+            try super.encode(to: container.superEncoder())
+         }
+      }
+      let template = try Template("{% super.name %} {% tricks[0] %}")
+      #expect(try template.render(encoding: Dog()) == "Rex sit")
+   }
+
+   @Test func decodingKeepsTypes() throws {
+      let json = #"{"s": "x", "i": 3, "d": 1.5, "b": true, "n": null, "a": [1, "y"], "o": {"k": false}}"#
+      let value = try JSONDecoder().decode(TemplateValue.self, from: Data(json.utf8))
+      #expect(value == ["s": "x", "i": 3, "d": 1.5, "b": true, "n": nil, "a": [1, "y"], "o": ["k": false]])
+   }
+
+   @Test func foundationValuesKeepTypes() {
+      let object: [String: Any] = ["b": true, "i": 3, "d": 1.5, "n": NSNull(), "u": UInt8(7), "s": Substring("sub")]
+      #expect(TemplateValue(any: object) == ["b": true, "i": 3, "d": 1.5, "n": nil, "u": 7, "s": "sub"])
+   }
+
    @Test func propertyListContext() throws {
       let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
