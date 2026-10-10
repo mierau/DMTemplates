@@ -214,14 +214,14 @@ struct TemplateParser {
    /// Identifies a tag by its keyword, ignoring case. Tags that take a
    /// statement in parentheses, like `if( this )`, come back with it.
    private func classify(_ content: Range<Int>) throws -> Tag {
-      if let statement = try call("if", in: content) { return .if(statement) }
-      if let statement = try call("elseif", in: content) { return .elseIf(statement) }
+      if let statement = try call("if", in: content, bare: true) { return .if(statement) }
+      if let statement = try call("elseif", in: content, bare: true) { return .elseIf(statement) }
       if let statement = try elseIf(in: content) { return .elseIf(statement) }
       if isWord("else", content) { return .else }
       if isWord("endif", content) { return .endIf }
       if isWord("endforeach", content) { return .endForEach }
       if isWord("end", content) { return .end }
-      if let statement = try call("foreach", in: content, wrapped: true) { return .forEach(statement) }
+      if let statement = try call("foreach", in: content, bare: true) { return .forEach(statement) }
       if let statement = try call("log", in: content) { return .log(statement) }
       return .value(content)
    }
@@ -233,8 +233,8 @@ struct TemplateParser {
    /// If `content` is `name( ... )`, the expression after the name: what's
    /// inside the parentheses when they wrap the rest of the tag, as in
    /// `if(a)`, or else everything from the `(` on, as in `if (a) or (b)`.
-   /// With `wrapped`, the parentheses have to wrap the rest of the tag.
-   private func call(_ name: String, in content: Range<Int>, wrapped: Bool = false) throws -> Range<Int>? {
+   /// With `bare`, the parentheses are optional, as in `if a`.
+   private func call(_ name: String, in content: Range<Int>, bare: Bool = false) throws -> Range<Int>? {
       guard source.matches(name, at: content.lowerBound, before: content.upperBound) else {
          return nil
       }
@@ -243,11 +243,9 @@ struct TemplateParser {
          paren += 1
       }
       guard paren < content.upperBound, source.bytes[paren] == UInt8(ascii: "(") else {
-         if paren > content.lowerBound + name.utf8.count, paren < content.upperBound, name != "log" {
-            // `if x`: a keyword, a space and more, which can't be a value.
-            throw error("\(name) needs parentheses, as in \(name)(...)", at: paren)
-         }
-         return nil
+         // `if x`: the keyword, a space and an expression.
+         let spaced = paren > content.lowerBound + name.utf8.count
+         return bare && spaced && paren < content.upperBound ? paren..<content.upperBound : nil
       }
       let close = source.closingParenthesis(from: paren, before: content.upperBound)
       if close == content.upperBound - 1 {
@@ -257,7 +255,7 @@ struct TemplateParser {
          }
          return statement
       }
-      guard close != nil, !wrapped else {
+      guard close != nil else {
          throw error("Expected ) at the end of the tag", at: content.upperBound - 1)
       }
       return paren..<content.upperBound
@@ -275,7 +273,7 @@ struct TemplateParser {
       while next < content.upperBound, source.bytes[next].isSpace {
          next += 1
       }
-      return try call("if", in: next..<content.upperBound)
+      return try call("if", in: next..<content.upperBound, bare: true)
    }
 
    // MARK: Blocks

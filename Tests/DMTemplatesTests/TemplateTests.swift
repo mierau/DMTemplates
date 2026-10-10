@@ -116,6 +116,15 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 }
 
 @Suite struct ConditionTests {
+   @Test func parenthesesAreOptional() throws {
+      let source = "{% if count > 2 %}many{% elseif count > 0 %}some{% else if count == 0 %}none{% endif %}"
+      #expect(try render(source, ["count": 3]) == "many")
+      #expect(try render(source, ["count": 1]) == "some")
+      #expect(try render(source, ["count": 0]) == "none")
+      #expect(try render("{% foreach n in items %}{% nIndex %}{% n %}{% end %}", ["items": ["a", "b"]]) == "0a1b")
+      #expect(try render("{% if %}|{% foreach %}", ["if": 1, "foreach": 2]) == "1|2")
+   }
+
    @Test func parenthesesThatDontWrapTheWholeCondition() throws {
       #expect(try render("{% if (a) or (b) %}yes{% endif %}", ["b": true]) == "yes")
       #expect(try render("{% if (a > 1) && (b < 2) %}yes{% else %}no{% endif %}", ["a": 5, "b": 1]) == "yes")
@@ -510,14 +519,11 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func unclosedBlocks() {
       #expect(error("{% if(x %}a")?.message == "Expected ) at the end of the tag")
-      #expect(error("{% foreach(x in y) z %}")?.message == "Expected ) at the end of the tag")
       #expect(error("{% if(x) %}a")?.message == "if is never closed")
       #expect(error("{% foreach(x in y) %}a")?.message == "foreach is never closed")
    }
 
    @Test func mismatchedClosers() {
-      #expect(error("{% if x %}{% endif %}")?.message == "if needs parentheses, as in if(...)")
-      #expect(error("{% foreach x in y %}{% end %}")?.message == "foreach needs parentheses, as in foreach(...)")
       #expect(error("{% endif %}")?.message == "endif without a matching if")
       #expect(error("{% if(a) %}{% endforeach %}")?.message == "endforeach without a matching foreach")
       #expect(error("{% else %}")?.message == "else without a matching if")
