@@ -2,6 +2,8 @@
 // Dustin Mierau
 // Cared for under the MIT license.
 
+import Foundation
+
 /// Compiled expressions, stored as flat buffers of plain values.
 ///
 /// A syntax tree of `indirect` enums would work, but every node visit retains
@@ -28,6 +30,8 @@ final class ExpressionCode: @unchecked Sendable {
       case or(Int32, Int32)
       case arithmetic(ArithmeticOperator, Int32, Int32)
       case comparison(ComparisonOperator, StringOptions, Int32, Int32)
+      /// MATCHES against a pattern compiled ahead of time, from `regexes`.
+      case match(regex: Int32, StringOptions, Int32)
       /// The receiver followed by the arguments, listed in `operands`.
       case function(Int32, Span)
    }
@@ -45,6 +49,7 @@ final class ExpressionCode: @unchecked Sendable {
    let strings: UnsafeMutableBufferPointer<String>
    let values: UnsafeMutableBufferPointer<TemplateValue>
    let functions: UnsafeMutableBufferPointer<Functions.Function>
+   let regexes: UnsafeMutableBufferPointer<NSRegularExpression>
 
    init(_ builder: Builder) {
       operations = .copying(builder.operations)
@@ -53,6 +58,7 @@ final class ExpressionCode: @unchecked Sendable {
       strings = .copying(builder.strings)
       values = .copying(builder.values)
       functions = .copying(builder.functions)
+      regexes = .copying(builder.regexes)
    }
 
    deinit {
@@ -62,11 +68,12 @@ final class ExpressionCode: @unchecked Sendable {
       strings.release()
       values.release()
       functions.release()
+      regexes.release()
    }
 
    /// Evaluates this code. Valid only while this object is alive.
    var interpreter: Interpreter {
-      Interpreter(operations: UnsafeBufferPointer(operations), steps: UnsafeBufferPointer(steps), operands: UnsafeBufferPointer(operands), strings: UnsafeBufferPointer(strings), values: UnsafeBufferPointer(values), functions: UnsafeBufferPointer(functions))
+      Interpreter(operations: UnsafeBufferPointer(operations), steps: UnsafeBufferPointer(steps), operands: UnsafeBufferPointer(operands), strings: UnsafeBufferPointer(strings), values: UnsafeBufferPointer(values), functions: UnsafeBufferPointer(functions), regexes: UnsafeBufferPointer(regexes))
    }
 }
 
@@ -81,6 +88,7 @@ extension ExpressionCode {
       private(set) var strings: [String] = []
       private(set) var values: [TemplateValue] = []
       private(set) var functions: [Functions.Function] = []
+      private(set) var regexes: [NSRegularExpression] = []
 
       /// Compiles `expr` and returns the index of the operation that evaluates it.
       mutating func add(_ expr: Expr) -> Int32 {
@@ -115,6 +123,12 @@ extension ExpressionCode {
             return append(.arithmetic(op, l, add(rhs)))
          case .comparison(let op, let options, let lhs, let rhs):
             let l = add(lhs)
+            // Compile a literal MATCHES pattern once. NSRegularExpression is
+            // safe to share between threads, so it serves every render.
+            if op == .matches, case .literal(.string(let pattern)) = rhs,
+               let regex = wholeStringRegex(pattern, options) {
+               return append(.match(regex: Self.append(regex, to: &regexes), options, l))
+            }
             return append(.comparison(op, options, l, add(rhs)))
          case .function(let function, let receiver, let arguments):
             let span = addOperands([receiver] + arguments)
@@ -165,6 +179,7 @@ struct Interpreter {
    let strings: UnsafeBufferPointer<String>
    let values: UnsafeBufferPointer<TemplateValue>
    let functions: UnsafeBufferPointer<Functions.Function>
+   let regexes: UnsafeBufferPointer<NSRegularExpression>
 
    func evaluate(_ index: Int32, in scope: ExpressionScope) -> TemplateValue {
       switch operations[Int(index)] {
@@ -200,6 +215,9 @@ struct Interpreter {
 
       case .comparison(let op, let options, let lhs, let rhs):
          return .bool(op.apply(evaluate(lhs, in: scope), evaluate(rhs, in: scope), options: options))
+
+      case .match(let regex, let options, let lhs):
+         return .bool(regexMatch(regexes[Int(regex)], evaluate(lhs, in: scope), options))
 
       case .function(let function, let span):
          let values = span.range.map { evaluate(operands[$0], in: scope) }

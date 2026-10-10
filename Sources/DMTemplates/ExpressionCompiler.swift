@@ -62,7 +62,8 @@ public struct ExpressionError: Error, Sendable, CustomStringConvertible {
 ///   `people.@avg.age`.
 /// - Arithmetic: `+ - * / %`.
 /// - Comparisons: `== = != <> < <= > >=`, `BETWEEN`, `IN`, `CONTAINS`,
-///   `BEGINSWITH`, `ENDSWITH`, with `[c]`, `[d]` or `[cd]` to ignore case or
+///   `BEGINSWITH`, `ENDSWITH`, `LIKE` (`*` and `?` wildcards) and `MATCHES`
+///   (a regular expression), with `[c]`, `[d]` or `[cd]` to ignore case or
 ///   diacritics.
 /// - Logic: `AND OR NOT`, or `&& || !`.
 /// - Literals: strings, numbers, `true`/`false`/`YES`/`NO`, `nil`, and arrays

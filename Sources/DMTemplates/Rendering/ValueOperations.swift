@@ -186,6 +186,20 @@ extension ComparisonOperator {
          let x = fold(text, options)
          let y = fold(affix, options)
          return self == .beginsWith ? x.hasPrefix(y) : x.hasSuffix(y)
+
+      case .like:
+         guard case .string(let text) = lhs, case .string(let pattern) = rhs else {
+            return false
+         }
+         return wildcardMatch(fold(text, options), fold(pattern, options))
+
+      case .matches:
+         // Templates compile a literal pattern ahead of time; this handles one
+         // computed while rendering.
+         guard case .string(let pattern) = rhs, let regex = wholeStringRegex(pattern, options) else {
+            return false
+         }
+         return regexMatch(regex, lhs, options)
       }
    }
 }
@@ -246,6 +260,80 @@ private func collection(_ collection: TemplateValue, contains element: TemplateV
    default:
       return false
    }
+}
+
+/// NSPredicate's LIKE: `*` matches any run of characters, `?` matches exactly
+/// one, and a backslash makes the character after it literal. The pattern has
+/// to cover the whole string.
+private func wildcardMatch(_ text: String, _ pattern: String) -> Bool {
+   enum Token: Equatable {
+      case any, one, character(Character)
+   }
+
+   var tokens: [Token] = []
+   var escaped = false
+   for c in pattern {
+      if escaped { tokens.append(.character(c)); escaped = false }
+      else if c == "\\" { escaped = true }
+      else if c == "*" { tokens.append(.any) }
+      else if c == "?" { tokens.append(.one) }
+      else { tokens.append(.character(c)) }
+   }
+   if escaped { tokens.append(.character("\\")) }
+
+   // Match greedily, and on a mismatch let the last `*` take one more
+   // character and try again from there.
+   let text = Array(text)
+   var t = 0
+   var p = 0
+   var lastAny: (token: Int, text: Int)?
+   while t < text.count {
+      if p < tokens.count, tokens[p] == .one || tokens[p] == .character(text[t]) {
+         t += 1
+         p += 1
+      }
+      else if p < tokens.count, tokens[p] == .any {
+         lastAny = (p, t)
+         p += 1
+      }
+      else if let any = lastAny {
+         lastAny = (any.token, any.text + 1)
+         p = any.token + 1
+         t = any.text + 1
+      }
+      else {
+         return false
+      }
+   }
+   while p < tokens.count, tokens[p] == .any {
+      p += 1
+   }
+   return p == tokens.count
+}
+
+/// A regular expression that, like NSPredicate's MATCHES, has to match the
+/// whole string. Nil when `pattern` isn't a valid regular expression.
+func wholeStringRegex(_ pattern: String, _ options: StringOptions) -> NSRegularExpression? {
+   var regexOptions: NSRegularExpression.Options = []
+   if options.contains(.caseInsensitive) { regexOptions.insert(.caseInsensitive) }
+   let pattern = fold(pattern, options.subtracting(.caseInsensitive))
+   // Check the pattern on its own first: wrapping it could balance a stray
+   // parenthesis and hide the mistake.
+   guard (try? NSRegularExpression(pattern: pattern, options: regexOptions)) != nil else {
+      return nil
+   }
+   return try? NSRegularExpression(pattern: "\\A(?:" + pattern + ")\\z", options: regexOptions)
+}
+
+/// Whether `value` is a string `regex` matches. The regex handles `[c]`;
+/// `[d]` folds the text the same way `wholeStringRegex` folded the pattern.
+func regexMatch(_ regex: NSRegularExpression, _ value: TemplateValue, _ options: StringOptions) -> Bool {
+   guard case .string(let text) = value else {
+      return false
+   }
+   let folded = fold(text, options.subtracting(.caseInsensitive))
+   let range = NSRange(folded.startIndex..<folded.endIndex, in: folded)
+   return regex.firstMatch(in: folded, options: [], range: range) != nil
 }
 
 /// Applies `[c]` and `[d]` by folding case and diacritics away.
