@@ -271,13 +271,13 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
         - {% friend %} ({% friendIndex+1 %} of {% friends.@count %})
       {% endforeach %}
 
-      Escaped HTML: {%[e] about %}
-      URL Encoded: {%[u] url %}
+      Escaped HTML: {% about | escaped %}
+      URL Encoded: {% url | urlEncoded %}
       {% if(file.fileSize between {0, 100}) %}
-      File size for {%[e] file.name %} too small!
+      File size for {% file.name | escaped %} too small!
       {% else %}
-      File name: {%[e] file.name %}
-      File size: {%[b] file.fileSize %}
+      File name: {% file.name | escaped %}
+      File size: {% file.fileSize | bytes %}
       {% endif %}
 
       """
@@ -307,9 +307,9 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 }
 
-@Suite struct ModifierTests {
+@Suite struct TextFunctionTests {
    @Test func byteSizes() throws {
-      let source = "{%[  b ] fileSize %}"
+      let source = "{% fileSize | bytes %}"
       let cases: [(String, String)] = [
          ("0", "Zero KB"),
          ("1", "1 byte"),
@@ -326,32 +326,32 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func urlEncoding() throws {
-      #expect(try render("{%[u] name %}", ["name": "Düstinø Mîeråü"]) == "D%C3%BCstin%C3%B8%20M%C3%AEer%C3%A5%C3%BC")
-      #expect(try render("{%[u] q %}", ["q": "a&b=c/d"]) == "a%26b%3Dc%2Fd")
+      #expect(try render("{% name | urlEncoded %}", ["name": "Düstinø Mîeråü"]) == "D%C3%BCstin%C3%B8%20M%C3%AEer%C3%A5%C3%BC")
+      #expect(try render("{% q | urlEncoded %}", ["q": "a&b=c/d"]) == "a%26b%3Dc%2Fd")
    }
 
    @Test func xmlEscaping() throws {
-      #expect(try render("{%[e] xml %}", ["xml": "<this>is some & \"xml\"</this>"]) == "&lt;this&gt;is some &amp; &quot;xml&quot;&lt;/this&gt;")
-      #expect(try render("{%[e] s %}", ["s": "it's\ta\n"]) == "it&apos;s&#x09;a&#x0A;")
+      #expect(try render("{% xml | escaped %}", ["xml": "<this>is some & \"xml\"</this>"]) == "&lt;this&gt;is some &amp; &quot;xml&quot;&lt;/this&gt;")
+      #expect(try render("{% s | escaped %}", ["s": "it's\ta\n"]) == "it&apos;s&#x09;a&#x0A;")
    }
 
-   @Test func customModifiersRunInOrder() throws {
+   @Test func textFunctionsRunInOrder() throws {
       var options = TemplateOptions()
-      options.modifiers = Modifiers()
-      options.modifiers["w"] = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-      options.modifiers["r"] = { String($0.reversed()) }
-      options.modifiers["q"] = { "\"\($0)\"" }
+      options.functions["quoted"] = Functions.text { "\"\($0)\"" }
       let context: TemplateValue = ["name": "  \nDustin "]
-      #expect(try render("{%[wrq] name %}", context, options: options) == "\"nitsuD\"")
-      #expect(try render("{%[qw] name %}", context, options: options) == "\"  \nDustin \"")
+      #expect(try render("{% name | trimmed | reversed | quoted %}", context, options: options) == "\"nitsuD\"")
+      #expect(try render("{% name | quoted | trimmed %}", context, options: options) == "\"  \nDustin \"")
    }
 
-   @Test func modifierLookupIgnoresCase() throws {
-      #expect(try render("{%[E] x %}", ["x": "<"]) == "&lt;")
+   @Test func textFunctionsMapOverLists() throws {
+      var options = TemplateOptions()
+      options.functions["shout"] = Functions.text { $0.uppercased() + "!" }
+      #expect(try render("{% names | shout | joined(' ') %}", ["names": ["a", "b"]], options: options) == "A! B!")
+      #expect(try render("[{% missing | shout %}]", options: options) == "[]")
    }
 
-   @Test func modifiersSkipMissingValues() throws {
-      #expect(try render("[{%[e] missing %}]") == "[]")
+   @Test func missingValuesStayMissing() throws {
+      #expect(try render("[{% missing | escaped %}]") == "[]")
    }
 }
 
@@ -421,16 +421,16 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(error("hello {% name")?.message == "Tag is missing its closing %}")
    }
 
-   @Test func unknownModifier() {
-      #expect(error("{%[z] name %}")?.message == "Unknown modifier 'z'")
+   @Test func unknownFormat() throws {
+      let problem = try #require(error("one\n{% when | month %}"))
+      #expect(problem.line == 2)
+      #expect(problem.column == 11)
+      #expect(problem.message.hasPrefix("Unknown function month()"))
    }
 
-   @Test func unknownFormat() throws {
-      let problem = try #require(error("one\n{% when as month %}"))
-      #expect(problem.line == 2)
-      #expect(problem.column == 12)
-      #expect(problem.message.hasPrefix("Unknown format 'month'"))
-      #expect(error(#"{% when as "" %}"#) != nil)
+   @Test func oldModifierAndFormatSyntaxPointToPipes() throws {
+      #expect(error("{%[e] name %}") != nil)
+      #expect(try #require(error("{% when as date %}")).message.hasPrefix("Format with a pipe"))
    }
 
    @Test func badExpressionsReportPosition() throws {
@@ -454,10 +454,10 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 @Suite struct FunctionTests {
    let context: TemplateValue = ["person": ["firstName": "Dustin"]]
 
-   @Test func functionsAreOnByDefaultAndCanBeTurnedOff() throws {
+   @Test func functionsRunInEveryRender() throws {
       let template = try Template("[{% person.firstName | uppercased %}]")
       #expect(template.render(context) == "[DUSTIN]")
-      #expect(template.render(context, features: [.log]) == "[]")
+      #expect(template.render(context, features: []) == "[DUSTIN]")
    }
 
    @Test func methodPipeAndCallSpellingsAgree() throws {
@@ -527,7 +527,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func functionsWorkInConditionsAndLoops() throws {
       let template = try Template("{% foreach(n in names) %}{% if(n.@count > 3) %}{% n | lowercased %} {% endif %}{% endforeach %}")
-      #expect(template.render(["names": ["Ann", "DUSTIN", "Ollie"]], features: .functions) == "dustin ollie ")
+      #expect(template.render(["names": ["Ann", "DUSTIN", "Ollie"]], ) == "dustin ollie ")
    }
 
    @Test func customFunctions() throws {
@@ -537,7 +537,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          return .string(String(repeating: receiver.renderedString, count: count))
       }
       let template = try Template("{% x.repeat(3) %}", options: options)
-      #expect(template.render(["x": "ab"], features: .functions) == "ababab")
+      #expect(template.render(["x": "ab"], ) == "ababab")
    }
 
    @Test func unknownFunctionsFailAtParse() {
@@ -653,7 +653,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       </dict></plist>
       """
       let object = try PropertyListSerialization.propertyList(from: Data(plist.utf8), format: nil)
-      let template = try Template("{%[b] size %} {% names.@count %}")
+      let template = try Template("{% size | bytes %} {% names.@count %}")
       #expect(template.render(object: object) == "2.2 MB 2")
    }
 }
@@ -727,7 +727,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
 @Suite struct ConcurrencyTests {
    @Test func oneTemplateRendersConcurrently() async throws {
-      let template = try Template("{% foreach(p in people) %}{% if(p.age >= 40) %}{%[e] p.name %}{% else %}-{% endif %}{% endforeach %}={% people.@sum.age %}")
+      let template = try Template("{% foreach(p in people) %}{% if(p.age >= 40) %}{% p.name | escaped %}{% else %}-{% endif %}{% endforeach %}={% people.@sum.age %}")
 
       let results = await withTaskGroup(of: (Int, String).self) { group in
          for i in 0..<64 {
@@ -753,15 +753,15 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 }
 
 @Suite struct ReadmeTests {
-   @Test func customModifierAndFunction() throws {
+   @Test func customFunctions() throws {
       var options = TemplateOptions()
-      options.modifiers["w"] = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-      options.functions["reversed"] = { receiver, _ in
-         .string(String(receiver.renderedString.reversed()))
+      options.functions["initials"] = { receiver, _ in
+         .string(receiver.renderedString.split(separator: " ").compactMap(\.first).map(String.init).joined())
       }
-      let template = try Template("{%[we] firstName %}|{% name | reversed %}", options: options)
-      let context: TemplateValue = ["firstName": "  Tom & Jerry ", "name": "abc"]
-      #expect(template.render(context, features: [.functions]) == "Tom &amp; Jerry|cba")
+      options.functions["shout"] = Functions.text { $0.uppercased() + "!" }
+      let template = try Template("{% firstName | trimmed | escaped %}|{% name | initials %}|{% name | shout %}", options: options)
+      let context: TemplateValue = ["firstName": "  Tom & Jerry ", "name": "Dustin Mierau"]
+      #expect(template.render(context) == "Tom &amp; Jerry|DM|DUSTIN MIERAU!")
    }
 
    @Test func naturalFunctionExamples() throws {
@@ -778,7 +778,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       var options = TemplateOptions()
       options.locale = Locale(identifier: "en_US")
       options.timeZone = TimeZone(identifier: "UTC")!
-      let template = try Template("{% post.date as \"EEEE, MMMM d\" %} {% item.weight as \"0.0\" %} kg", options: options)
+      let template = try Template("{% post.date | format(\"EEEE, MMMM d\") %} {% item.weight | format(\"0.0\") %} kg", options: options)
       #expect(template.render(["post": ["date": "2025-10-09"], "item": ["weight": 2.5]]) == "Thursday, October 9 2.5 kg")
    }
 
@@ -809,25 +809,25 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       let cases: [(String, String)] = [
          ("date", moment.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: locale, timeZone: zone))),
          ("time", moment.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, timeZone: zone))),
-         ("datetime", moment.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: locale, timeZone: zone))),
+         ("dateTime", moment.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: locale, timeZone: zone))),
          ("iso8601", "2025-10-09T08:53:20Z"),
       ]
       for (style, expected) in cases {
-         #expect(try render("{% when as \(style) %}", ["when": .date(moment)], options: options) == expected)
+         #expect(try render("{% when | \(style) %}", ["when": .date(moment)], options: options) == expected)
       }
-      #expect(try render("{% when as date %}", ["when": .date(moment)], options: options) == "Oct 9, 2025")
+      #expect(try render("{% when | date %}", ["when": .date(moment)], options: options) == "Oct 9, 2025")
    }
 
    @Test func relativeDates() throws {
       let twoDaysAgo = Date().addingTimeInterval(-2 * 24 * 60 * 60)
-      #expect(try render("{% when as relative %}", ["when": .date(twoDaysAgo)], options: options) == "2 days ago")
+      #expect(try render("{% when | relative %}", ["when": .date(twoDaysAgo)], options: options) == "2 days ago")
    }
 
    @Test func datePatterns() throws {
       let context: TemplateValue = ["when": .date(moment)]
-      #expect(try render("{% when as \"yyyy-MM-dd\" %}", context, options: options) == "2025-10-09")
-      #expect(try render("{% when as \"MMM d, yyyy 'at' h:mm a\" %}", context, options: options) == "Oct 9, 2025 at 1:53 AM")
-      #expect(try render("{% when as 'EEEE' %}", context, options: options) == "Thursday")
+      #expect(try render("{% when | format(\"yyyy-MM-dd\") %}", context, options: options) == "2025-10-09")
+      #expect(try render("{% when | format(\"MMM d, yyyy 'at' h:mm a\") %}", context, options: options) == "Oct 9, 2025 at 1:53 AM")
+      #expect(try render("{% when | format('EEEE') %}", context, options: options) == "Thursday")
    }
 
    @Test func datesFromStringsAndNumbers() throws {
@@ -838,33 +838,39 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          "day": "2025-10-09",
          "seconds": 1_760_000_000,
       ]
-      let template = try Template("{% stamp as \"HH:mm\" %} {% fraction as \"HH:mm\" %} {% offset as \"HH:mm\" %} {% day as \"MMM d\" %} {% seconds as \"HH:mm\" %}", options: options)
+      let template = try Template("{% stamp | format(\"HH:mm\") %} {% fraction | format(\"HH:mm\") %} {% offset | format(\"HH:mm\") %} {% day | format(\"MMM d\") %} {% seconds | format(\"HH:mm\") %}", options: options)
       #expect(template.render(context) == "01:53 01:53 01:53 Oct 9 01:53")
    }
 
    @Test func numberStyles() throws {
       let context: TemplateValue = ["big": 1234567.891, "share": 0.256, "price": 1234.5, "count": 1200, "text": "42.5"]
-      #expect(try render("{% big as number %}|{% share as percent %}|{% price as currency %}|{% count as number %}|{% text as number %}", context, options: options)
+      #expect(try render("{% big | number %}|{% share | percent %}|{% price | currency %}|{% count | number %}|{% text | number %}", context, options: options)
          == "1,234,567.891|25.6%|$1,234.50|1,200|42.5")
 
       var euros = options
       euros.currencyCode = "EUR"
-      #expect(try render("{% price as currency %}", context, options: euros) == "€1,234.50")
+      #expect(try render("{% price | currency %}", context, options: euros) == "€1,234.50")
    }
 
    @Test func numberPatterns() throws {
       let context: TemplateValue = ["price": 1234.5, "count": 3, "loss": -2.5]
-      #expect(try render("{% price as \"#,##0.00\" %} {% count as \"0.0\" %} {% loss as \"0.00\" %}", context, options: options) == "1,234.50 3.0 -2.50")
+      #expect(try render("{% price | format(\"#,##0.00\") %} {% count | format(\"0.0\") %} {% loss | format(\"0.00\") %}", context, options: options) == "1,234.50 3.0 -2.50")
    }
 
    @Test func valuesAFormatDoesNotFitRenderAsUsual() throws {
-      #expect(try render("[{% name as date %}] [{% name as number %}] [{% missing as date %}]", ["name": "Dustin"], options: options) == "[Dustin] [Dustin] []")
+      #expect(try render("[{% name | date %}] [{% name | number %}] [{% missing | date %}]", ["name": "Dustin"], options: options) == "[Dustin] [Dustin] []")
    }
 
-   @Test func formatNamesIgnoreCaseAndModifiersApplyAfter() throws {
-      let context: TemplateValue = ["when": .date(moment), "name": "<b>"]
-      #expect(try render("{% when AS DATE %}", context, options: options) == "Oct 9, 2025")
-      #expect(try render("{%[u] when as \"yyyy-MM-dd HH:mm\" %}", context, options: options) == "2025-10-09%2001%3A53")
+   @Test func formatsChainWithOtherFunctions() throws {
+      let context: TemplateValue = ["when": .date(moment), "dates": [.date(moment)]]
+      #expect(try render("{% dates | date | joined %}", context, options: options) == "Oct 9, 2025")
+      #expect(try render("{% when | format(\"yyyy-MM-dd HH:mm\") | urlEncoded %}", context, options: options) == "2025-10-09%2001%3A53")
+   }
+
+   @Test func appFunctionsReplaceFormats() throws {
+      var custom = options
+      custom.functions["date"] = Functions.text { "custom \($0)" }
+      #expect(try render("{% x | date %}", ["x": "a"], options: custom) == "custom a")
    }
 
    @Test func asInsideStringsIsText() throws {
@@ -874,11 +880,11 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    @Test func datesCompareAndAggregate() throws {
       let earlier = moment.addingTimeInterval(-60)
       let context: TemplateValue = ["a": .date(earlier), "b": .date(moment), "posts": [["date": .date(earlier)], ["date": .date(moment)]]]
-      #expect(try render("{% if(a < b) %}before{% endif %} {% posts.@max.date as \"HH:mm\" %}", context, options: options) == "before 01:53")
+      #expect(try render("{% if(a < b) %}before{% endif %} {% posts.@max.date | format(\"HH:mm\") %}", context, options: options) == "before 01:53")
    }
 
    @Test func formattingFromManyThreads() async throws {
-      let template = try Template("{% when as \"yyyy-MM-dd HH:mm\" %} {% price as \"#,##0.00\" %}", options: options)
+      let template = try Template("{% when | format(\"yyyy-MM-dd HH:mm\") %} {% price | format(\"#,##0.00\") %}", options: options)
       let context: TemplateValue = ["when": .date(moment), "price": 1234.5]
       let outputs = await withTaskGroup(of: Set<String>.self) { group in
          for _ in 0..<8 {

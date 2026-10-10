@@ -202,9 +202,6 @@ struct Interpreter {
          return .bool(op.apply(evaluate(lhs, in: scope), evaluate(rhs, in: scope), options: options))
 
       case .function(let function, let span):
-         guard scope.features.contains(.functions) else {
-            return .null
-         }
          let values = span.range.map { evaluate(operands[$0], in: scope) }
          return functions[Int(function)](values[0], Array(values.dropFirst()))
       }

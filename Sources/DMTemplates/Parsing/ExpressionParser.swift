@@ -216,6 +216,9 @@ struct ExpressionParser {
       if case .end = current.kind {
          return expr
       }
+      if current.keyword == "AS" {
+         throw error("Format with a pipe, as in 'value | date', not 'as'")
+      }
       throw error("Unexpected \(describe(current))")
    }
 
