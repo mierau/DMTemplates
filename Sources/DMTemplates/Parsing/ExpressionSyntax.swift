@@ -45,7 +45,7 @@ enum ArithmeticOperator: Sendable {
 
 enum ComparisonOperator: Sendable {
    case equal, notEqual, less, lessOrEqual, greater, greaterOrEqual
-   case between, `in`, contains, beginsWith, endsWith
+   case between, `in`, contains, beginsWith, endsWith, like, matches
 }
 
 /// The `[c]` and `[d]` flags on a string comparison.

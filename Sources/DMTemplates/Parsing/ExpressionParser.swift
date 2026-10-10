@@ -300,8 +300,8 @@ struct ExpressionParser {
          case "CONTAINS": op = .contains
          case "BEGINSWITH": op = .beginsWith
          case "ENDSWITH": op = .endsWith
-         case "LIKE", "MATCHES":
-            throw error("\(current.keyword) is not supported")
+         case "LIKE": op = .like
+         case "MATCHES": op = .matches
          default:
             return lhs
          }
@@ -311,7 +311,15 @@ struct ExpressionParser {
       advance()
 
       let options = parseStringOptions()
-      return .comparison(op, options, lhs, try parseAdditive())
+      let rhsToken = current
+      let rhs = try parseAdditive()
+      // A pattern written in the template is checked now, so a bad one fails
+      // when the template is created rather than never matching.
+      if op == .matches, case .literal(.string(let pattern)) = rhs,
+         wholeStringRegex(pattern, options) == nil {
+         throw error("Invalid regular expression \"\(pattern)\"", at: rhsToken)
+      }
+      return .comparison(op, options, lhs, rhs)
    }
 
    /// Reads a `[c]`, `[d]` or `[cd]` suffix after a comparison operator.
