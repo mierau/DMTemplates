@@ -4,65 +4,9 @@
 
 import Foundation
 
-/// Single-character transforms applied to a value tag's output, written in
-/// brackets before the expression: `{%[e] name %}`. Several run in order:
-/// `{%[we] name %}` applies `w`, then `e`.
-public struct Modifiers: Sendable {
-   public typealias Transform = @Sendable (String) -> String
+// Text transforms behind the `escaped`, `urlEncoded` and `bytes` functions.
 
-   private var modifiers: [Character: Modifier]
-
-   /// No modifiers.
-   public init() {
-      self.modifiers = [:]
-   }
-
-   /// The built-in modifiers: `e` escapes XML/HTML, `u` percent-encodes for
-   /// URLs, and `b` formats a byte count (`2034421` becomes `1.9 MB`).
-   public static let standard: Modifiers = {
-      var modifiers = Modifiers()
-      modifiers.modifiers["e"] = .escapeXML
-      modifiers.modifiers["u"] = .percentEncode
-      modifiers.modifiers["b"] = .byteCount
-      return modifiers
-   }()
-
-   public subscript(character: Character) -> Transform? {
-      get {
-         guard let modifier = modifier(for: character) else {
-            return nil
-         }
-         return { modifier.apply($0) }
-      }
-      set { modifiers[character] = newValue.map { .custom($0) } }
-   }
-
-   func modifier(for character: Character) -> Modifier? {
-      modifiers[character] ?? modifiers[Character(character.lowercased())]
-   }
-}
-
-/// A modifier as the renderer stores it. Built-ins are plain cases rather than
-/// closures so applying them takes no reference counting on shared state.
-enum Modifier: Sendable {
-   case escapeXML
-   case percentEncode
-   case byteCount
-   case custom(Modifiers.Transform)
-
-   func apply(_ text: String) -> String {
-      switch self {
-      case .escapeXML: return escapingXMLEntities(text)
-      case .percentEncode: return addingPercentEncoding(text)
-      case .byteCount: return readableByteCount(Int64(leadingIntegerOf: text))
-      case .custom(let transform): return transform(text)
-      }
-   }
-}
-
-// MARK: - Built-in transforms
-
-/// Escapes the same characters DMTemplateEngine's `e` modifier does.
+/// Escapes the same characters DMTemplateEngine's `e` modifier did.
 func escapingXMLEntities(_ text: String) -> String {
    // Most values need no escaping; return them untouched.
    let needsEscaping = text.utf8.contains { byte in

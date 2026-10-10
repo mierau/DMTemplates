@@ -40,33 +40,40 @@ public struct Functions: Sendable {
    /// - `joined(separator)`, which joins a list into text
    /// - `path(components...)`, which joins its receiver and arguments with `/`
    /// - `default(fallback)`, the fallback when the value is nil or empty
+   /// - `escaped`, which escapes text for HTML and XML
+   /// - `urlEncoded`, which percent-encodes everything but letters, digits
+   ///   and `-._~`
+   /// - `bytes`, which shows a byte count for people, as in `1.9 MB`
+   ///
+   /// Templates also get formatting functions, such as `date` and `currency`,
+   /// which follow the template's locale; see `TemplateOptions.locale`.
    ///
    /// Text functions applied to a list apply to each element, so
    /// `files.name | lowercased` lowercases every name.
    public static let standard: Functions = {
       var functions = Functions()
 
-      functions["uppercased"] = text { text, _ in .string(text.uppercased()) }
-      functions["lowercased"] = text { text, _ in .string(text.lowercased()) }
-      functions["capitalized"] = text { text, _ in .string(text.capitalized) }
-      functions["trimmed"] = text { text, _ in .string(text.trimmingCharacters(in: .whitespacesAndNewlines)) }
-      functions["prefix"] = text { text, arguments in
+      functions["uppercased"] = textFunction { text, _ in .string(text.uppercased()) }
+      functions["lowercased"] = textFunction { text, _ in .string(text.lowercased()) }
+      functions["capitalized"] = textFunction { text, _ in .string(text.capitalized) }
+      functions["trimmed"] = textFunction { text, _ in .string(text.trimmingCharacters(in: .whitespacesAndNewlines)) }
+      functions["prefix"] = textFunction { text, arguments in
          guard let count = integer(arguments.first), count >= 0 else { return .null }
          return .string(String(text.prefix(count)))
       }
-      functions["suffix"] = text { text, arguments in
+      functions["suffix"] = textFunction { text, arguments in
          guard let count = integer(arguments.first), count >= 0 else { return .null }
          return .string(String(text.suffix(count)))
       }
-      functions["dropFirst"] = text { text, arguments in
+      functions["dropFirst"] = textFunction { text, arguments in
          guard let count = arguments.isEmpty ? 1 : integer(arguments.first), count >= 0 else { return .null }
          return .string(String(text.dropFirst(count)))
       }
-      functions["dropLast"] = text { text, arguments in
+      functions["dropLast"] = textFunction { text, arguments in
          guard let count = arguments.isEmpty ? 1 : integer(arguments.first), count >= 0 else { return .null }
          return .string(String(text.dropLast(count)))
       }
-      functions["replacing"] = text { text, arguments in
+      functions["replacing"] = textFunction { text, arguments in
          guard arguments.count == 2, let target = string(arguments[0]), !target.isEmpty else { return .null }
          return .string(text.replacingOccurrences(of: target, with: arguments[1].renderedString))
       }
@@ -92,6 +99,9 @@ public struct Functions: Sendable {
          }
          return parts.isEmpty ? .null : .string(joinedPath(parts))
       }
+      functions["escaped"] = textFunction { text, _ in .string(escapingXMLEntities(text)) }
+      functions["urlEncoded"] = textFunction { text, _ in .string(addingPercentEncoding(text)) }
+      functions["bytes"] = textFunction { text, _ in .string(readableByteCount(Int64(leadingIntegerOf: text))) }
       functions["default"] = { receiver, arguments in
          switch receiver {
          case .null: return arguments.first ?? .null
@@ -107,8 +117,24 @@ public struct Functions: Sendable {
       set { table[name] = newValue }
    }
 
+   /// Makes a function from a transform of text, such as
+   ///
+   ///     options.functions["shout"] = Functions.text { $0.uppercased() + "!" }
+   ///
+   /// Applied to a list, it transforms each element. Nil stays nil.
+   public static func text(_ transform: @escaping @Sendable (String) -> String) -> Function {
+      textFunction { text, _ in .string(transform(text)) }
+   }
+
+   /// Functions from `other` added to these, replacing any with the same name.
+   func adding(_ other: Functions) -> Functions {
+      var result = self
+      result.table.merge(other.table) { _, new in new }
+      return result
+   }
+
    /// A function on text. Applied to a list, it applies to each element.
-   private static func text(_ body: @escaping @Sendable (String, [TemplateValue]) -> TemplateValue) -> Function {
+   static func textFunction(_ body: @escaping @Sendable (String, [TemplateValue]) -> TemplateValue) -> Function {
       @Sendable func apply(_ receiver: TemplateValue, _ arguments: [TemplateValue]) -> TemplateValue {
          if case .array(let items) = receiver {
             return .array(items.map { apply($0, arguments) })
@@ -124,14 +150,14 @@ public struct Functions: Sendable {
       return path
    }
 
-   private static func string(_ value: TemplateValue) -> String? {
+   static func string(_ value: TemplateValue) -> String? {
       switch value {
       case .null, .array, .dictionary: return nil
       default: return value.renderedString
       }
    }
 
-   private static func integer(_ value: TemplateValue?) -> Int? {
+   static func integer(_ value: TemplateValue?) -> Int? {
       switch value?.number {
       case .int(let v)?: return v
       case .double(let v)?: return Int(exactly: v.rounded(.towardZero))
@@ -148,12 +174,9 @@ public struct RenderFeatures: OptionSet, Sendable {
       self.rawValue = rawValue
    }
 
-   /// Runs function calls. When off, they evaluate to nil.
-   public static let functions = RenderFeatures(rawValue: 1 << 0)
-
    /// Sends `log(...)` tags to `TemplateOptions.log`. When off, they're skipped.
    public static let log = RenderFeatures(rawValue: 1 << 1)
 
-   /// Functions and logging on.
-   public static let `default`: RenderFeatures = [.functions, .log]
+   /// Logging on.
+   public static let `default`: RenderFeatures = [.log]
 }

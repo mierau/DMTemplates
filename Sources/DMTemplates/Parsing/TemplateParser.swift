@@ -12,7 +12,7 @@ struct ParsedTemplate {
 
 enum Node {
    case text(String)
-   case value(TagExpression, modifiers: [Modifier], format: Format?)
+   case value(TagExpression)
    case conditional([Branch], otherwise: [Node]?)
    case loop(slot: Int, sequence: TagExpression, body: [Node])
    case log(TagExpression)
@@ -39,7 +39,6 @@ struct TemplateParser {
    private let source: SourceText
    private let beginDelimiter: [UInt8]
    private let endDelimiter: [UInt8]
-   private let modifiers: Modifiers
    private let compileExpression: (_ source: String, _ locals: [String]) throws -> TagExpression
 
    // The parser deliberately holds no existentials (such as
@@ -93,9 +92,12 @@ struct TemplateParser {
       self.source = SourceText(source)
       self.beginDelimiter = Array(options.beginDelimiter.utf8)
       self.endDelimiter = Array(options.endDelimiter.utf8)
-      self.modifiers = options.modifiers
 
-      if let native = options.expressionCompiler as? NativeExpressionCompiler {
+      if var compiler = options.expressionCompiler as? NativeExpressionCompiler {
+         // Formatting functions depend on the options, so each template gets
+         // its own. The app's functions win over them.
+         compiler.functions = Functions.formatting(options).adding(compiler.functions)
+         let native = compiler
          // Keep the syntax tree; the program compiles it alongside the
          // template's other expressions.
          self.compileExpression = { source, locals in
@@ -160,26 +162,17 @@ struct TemplateParser {
    /// Handles one tag's content. Returns whether the tag swallows the newline
    /// after it, which every tag but a value does.
    private mutating func handleTag(_ content: Range<Int>) throws -> Bool {
-      var content = source.trimmed(content)
+      let content = source.trimmed(content)
       if content.isEmpty {
          return false
       }
 
-      let modifiers = try parseModifiers(&content)
       let tag = try classify(content)
-      if !modifiers.isEmpty {
-         guard case .value = tag else {
-            throw error("Modifiers only apply to value tags", at: content.lowerBound)
-         }
-      }
 
       let offset = content.lowerBound
       switch tag {
-      case .value(let body):
-         let (expression, format) = try splitFormat(body)
-         if !expression.isEmpty {
-            append(.value(try compile(expression), modifiers: modifiers, format: format))
-         }
+      case .value(let expression):
+         append(.value(try compile(expression)))
          return false
 
       case .if(let condition):
@@ -217,40 +210,6 @@ struct TemplateParser {
    }
 
    // MARK: Tags
-
-   /// Reads a leading modifier list, as in `{%[eu] value %}`, and removes it
-   /// from `content`.
-   private func parseModifiers(_ content: inout Range<Int>) throws -> [Modifier] {
-      guard source.bytes[content.lowerBound] == UInt8(ascii: "[") else {
-         return []
-      }
-      guard let close = source.bytes[content].firstIndex(of: UInt8(ascii: "]")) else {
-         throw error("Modifier list is missing its closing ]", at: content.lowerBound)
-      }
-      let names = source.text((content.lowerBound + 1)..<close)
-      var parsed: [Modifier] = []
-      for character in names where !character.isWhitespace {
-         guard let modifier = modifiers.modifier(for: character) else {
-            throw error("Unknown modifier '\(character)'", at: content.lowerBound)
-         }
-         parsed.append(modifier)
-      }
-      content = source.trimmed((close + 1)..<content.upperBound)
-      return parsed
-   }
-
-   /// Splits `value as format` into the value's expression and its format.
-   private func splitFormat(_ content: Range<Int>) throws -> (Range<Int>, Format?) {
-      guard let separator = source.findKeyword(" as ", in: content) else {
-         return (content, nil)
-      }
-      let formatRange = source.trimmed(separator.upperBound..<content.upperBound)
-      let text = source.text(formatRange)
-      guard let format = Format(text) else {
-         throw error("Unknown format '\(text)'. Use date, time, datetime, iso8601, relative, number, percent, currency, or a pattern in quotes", at: formatRange.lowerBound)
-      }
-      return (source.trimmed(content.lowerBound..<separator.lowerBound), format)
-   }
 
    /// Identifies a tag by its keyword, ignoring case. Tags that take a
    /// statement in parentheses, like `if( this )`, come back with it.

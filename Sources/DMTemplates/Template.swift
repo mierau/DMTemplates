@@ -51,15 +51,15 @@ public struct TemplateOptions: Sendable {
    /// Marks the end of a tag. Default: `%}`.
    public var endDelimiter = "%}"
 
-   /// Modifiers available to value tags. Default: `Modifiers.standard`.
-   public var modifiers = Modifiers.standard
-
    /// Compiles tag expressions. Default: `NativeExpressionCompiler`.
    public var expressionCompiler: any ExpressionCompiler = NativeExpressionCompiler()
 
    /// Functions templates can call, as in `name.uppercased()` or
-   /// `name | uppercased`. Default: `Functions.standard`. A render can turn
-   /// calls off by leaving `RenderFeatures.functions` out of its features.
+   /// `name | uppercased`. Default: `Functions.standard`. Templates also get
+   /// the formatting functions `date`, `time`, `dateTime`, `iso8601`,
+   /// `relative`, `number`, `percent`, `currency` and `format(pattern)`, which
+   /// follow `locale`, `timeZone` and `currencyCode`; a function registered
+   /// here under one of those names replaces it.
    ///
    /// These belong to `expressionCompiler` when it's a
    /// `NativeExpressionCompiler`; other compilers ignore them.
@@ -73,14 +73,15 @@ public struct TemplateOptions: Sendable {
       }
    }
 
-   /// The locale `as` formats use, for things like month names and number
-   /// separators. Default: the current locale.
+   /// The locale formatting functions use, for things like month names and
+   /// number separators. Default: the current locale.
    public var locale = Locale.current
 
-   /// The time zone `as` shows dates in. Default: the current time zone.
+   /// The time zone formatting functions show dates in. Default: the current
+   /// time zone.
    public var timeZone = TimeZone.current
 
-   /// The currency `as currency` shows, as an ISO 4217 code such as "EUR".
+   /// The currency `currency` shows, as an ISO 4217 code such as "EUR".
    /// Default: the locale's currency, or "USD" when it has none.
    public var currencyCode: String?
 

@@ -68,9 +68,7 @@ public struct ExpressionError: Error, Sendable, CustomStringConvertible {
 /// - Literals: strings, numbers, `true`/`false`/`YES`/`NO`, `nil`, and arrays
 ///   written `{1, 2}` or `[1, 2]`.
 /// - Calls to `functions`: `name.prefix(3)`, `name | prefix(3)` and
-///   `prefix(name, 3)` all call `prefix` with `name` as the receiver. A render
-///   can turn calls off by
-///   leaving `RenderFeatures.functions` out of its features.
+///   `prefix(name, 3)` all call `prefix` with `name` as the receiver.
 public struct NativeExpressionCompiler: ExpressionCompiler {
    /// Functions templates may call. Calling any other is a compile error.
    public var functions: Functions
