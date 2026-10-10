@@ -527,7 +527,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func functionsWorkInConditionsAndLoops() throws {
       let template = try Template("{% foreach(n in names) %}{% if(n.@count > 3) %}{% n | lowercased %} {% endif %}{% endforeach %}")
-      #expect(template.render(["names": ["Ann", "DUSTIN", "Ollie"]], ) == "dustin ollie ")
+      #expect(template.render(["names": ["Ann", "DUSTIN", "Ollie"]]) == "dustin ollie ")
    }
 
    @Test func customFunctions() throws {
@@ -537,7 +537,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          return .string(String(repeating: receiver.renderedString, count: count))
       }
       let template = try Template("{% x.repeat(3) %}", options: options)
-      #expect(template.render(["x": "ab"], ) == "ababab")
+      #expect(template.render(["x": "ab"]) == "ababab")
    }
 
    @Test func unknownFunctionsFailAtParse() {
