@@ -5,11 +5,11 @@ Your have {% friends.@count %} friends:
   - {% friend %} ({% friendIndex+1 %} of {% friends.@count %})
 {% endforeach %}
 
-Escaped HTML: {% about | escaped %}
-URL Encoded: {% url | urlEncoded %}
+Escaped HTML: {% about | escape %}
+URL Encoded: {% url | urlEncode %}
 {% if(file.fileSize between {0, 100}) %}
-File size for {% file.name | escaped %} too small!
+File size for {% file.name | escape %} too small!
 {% else %}
-File name: {% file.name | escaped %}
+File name: {% file.name | escape %}
 File size: {% file.fileSize | bytes %}
 {% endif %}

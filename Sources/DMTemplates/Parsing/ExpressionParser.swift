@@ -194,7 +194,7 @@ private struct Lexer {
 ///
 /// Calls name a registered function. `value.name(a, b)`, `value | name(a, b)`
 /// and `name(value, a, b)` all mean the same thing: call `name` with `value`
-/// as the receiver. A pipe binds as tightly as `.`, so `name | lowercased ==
+/// as the receiver. A pipe binds as tightly as `.`, so `name | lowercase ==
 /// "x"` compares the lowercased name.
 struct ExpressionParser {
    private let tokens: [Token]
