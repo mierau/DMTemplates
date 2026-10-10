@@ -1,7 +1,7 @@
 # DMTemplates
 [![Test](https://github.com/mierau/DMTemplates/actions/workflows/test.yml/badge.svg)](https://github.com/mierau/DMTemplates/actions/workflows/test.yml)
 
-A small Swift templating engine with enough features for the cases developers commonly face: values, conditions, loops, modifiers and logging.
+A small Swift templating engine with enough features for the cases developers commonly face: values, conditions, loops, functions and logging.
 
 A template is parsed once into an immutable, `Sendable` value, with every tag's expression compiled up front. Rendering is a pure function of the template and a context, so one template can render on many threads at once. It runs anywhere Swift 6 does, including Linux.
 
@@ -37,11 +37,11 @@ Value tags, conditions and loops all take expressions, written in a syntax model
 
 * Key paths: `person.name`, `people[0]`, `person["first name"]`, `people[FIRST]`, `people[LAST]`, `people[SIZE]`. A key path through an array collects the key from every element, so `files.name` is an array of names.
 * Collection operators: `@count`, `@sum`, `@avg`, `@min` and `@max`, as in `people.@avg.age`.
-* String properties: `length`, `lowercaseString`, `uppercaseString` and `capitalizedString`.
 * Arithmetic: `+ - * / %`.
 * Comparisons: `== = != <> < <= > >=`, `BETWEEN`, `IN`, `CONTAINS`, `BEGINSWITH` and `ENDSWITH`, with `[c]`, `[d]` or `[cd]` to ignore case or diacritics.
 * Logic: `AND`, `OR` and `NOT`, or `&&`, `||` and `!`.
 * Literals: strings, numbers, `true`/`false`/`YES`/`NO`, `nil`, and arrays written `{1, 2}` or `[1, 2]`.
+* Function calls: `name.uppercased()`, `name | prefix(3)`, `path("~", name)`. See [Functions](#functions).
 
 `LIKE`, `MATCHES`, `ANY`, `ALL`, `SOME`, `NONE`, `SUBQUERY`, `CAST` and `TERNARY` are not supported and are reported as errors.
 
@@ -69,7 +69,7 @@ A **foreach** loop runs over an array, which can come from a key path, an expres
       Contact: {% contactName %}
     {% endforeach %}
 
-    {% foreach(filename in files.name.lowercaseString) %}
+    {% foreach(filename in files.name | lowercased) %}
       Lowercase file name: {% filename %}
     {% endforeach %}
 
@@ -79,24 +79,47 @@ Inside a loop, the current index is available as the loop variable's name follow
       Contact {% contactIndex + 1 %}: {% contact.firstName %}
     {% endforeach %}
 
+## Functions
+Functions transform a value before it's shown. Pass a value through them with a pipe, or call them the way you'd call a method in Swift. These all mean the same thing:
+
+    {% person.firstName | prefix(1) | uppercased %}
+    {% person.firstName.prefix(1).uppercased() %}
+    {% uppercased(prefix(person.firstName, 1)) %}
+
+Pipes apply left to right and need no parentheses when there are no arguments. A pipe binds as tightly as `.`, so it works inside conditions, and parentheses pipe a whole expression:
+
+    {% person.bio | trimmed | escaped %}
+    {% if(post.title | lowercased BEGINSWITH "draft") %}(unpublished){% endif %}
+    {% (item.price * item.quantity) | currency %}
+
+The standard functions are:
+
+* Text: `uppercased`, `lowercased`, `capitalized`, `trimmed`, `prefix(n)`, `suffix(n)`, `dropFirst(n)`, `dropLast(n)` (where `n` defaults to 1) and `replacing(old, new)`.
+* Output: `escaped` escapes text for HTML and XML, `urlEncoded` percent-encodes everything except letters, digits and `-._~`, and `bytes` shows a byte count for people, as in `1.9 MB`.
+* Lists: `reversed`, for text or a list, and `joined(separator)` to join a list into text.
+* `path(components...)`, as in `path("/avatars", person.id, "photo.jpg")`.
+* `default(fallback)`, which stands in for nil or empty values, as in `person.nickname | default(person.firstName)`.
+
+Text functions applied to a list apply to each element, so `files.name | lowercased | joined(", ")` lists every name in lowercase.
+
 ## Formatting
-Add `as` and a format to a value tag to show a date or number for people:
+Formatting functions show dates and numbers for people:
 
-    Posted {% post.date as date %} at {% post.date as time %}
-    Updated {% post.updated as relative %}
-    Total: {% order.total as currency %}
+    Posted {% post.date | date %} at {% post.date | time %}
+    Updated {% post.updated | relative %}
+    Total: {% order.total | currency %}
 
-The named formats are:
+They are:
 
-* `date`, `time` and `datetime`, as in `Oct 9, 2025` and `1:53 AM`.
+* `date`, `time` and `dateTime`, as in `Oct 9, 2025` and `1:53 AM`.
 * `relative`, as in `2 days ago`.
 * `iso8601`, as in `2025-10-09T08:53:20Z`, which is also how dates render without a format.
 * `number`, `percent` and `currency`, as in `1,234.5`, `25%` and `$1,234.50`.
 
-For anything else, give a pattern in quotes: a date pattern like `"MMM d, yyyy"` or a number pattern like `"#,##0.00"`, written the way DateFormatter and NumberFormatter take them.
+For anything else, use `format` with a date pattern like `"MMM d, yyyy"` or a number pattern like `"#,##0.00"`, written the way DateFormatter and NumberFormatter take them.
 
-    {% post.date as "EEEE, MMMM d" %}
-    {% item.weight as "0.0" %} kg
+    {% post.date | format("EEEE, MMMM d") %}
+    {% item.weight | format("0.0") %} kg
 
 Formats follow `TemplateOptions.locale`, `timeZone` and `currencyCode`, which default to the current locale, the current time zone and the locale's currency:
 
@@ -104,44 +127,23 @@ Formats follow `TemplateOptions.locale`, `timeZone` and `currencyCode`, which de
     options.locale = Locale(identifier: "fr_FR")
     options.currencyCode = "EUR"
 
-Dates can be `Date` values, ISO 8601 strings such as `"2025-10-09T08:53:20Z"` or `"2025-10-09"`, or numbers of seconds since 1970, so dates in JSON work too. They also compare with `<`, `>` and the rest, and work with `@min` and `@max`. A value a format doesn't fit, such as a name formatted `as date`, renders as usual. Modifiers apply after formatting.
+Dates can be `Date` values, ISO 8601 strings such as `"2025-10-09T08:53:20Z"` or `"2025-10-09"`, or numbers of seconds since 1970, so dates in JSON work too. They also compare with `<`, `>` and the rest, and work with `@min` and `@max`. A value a format doesn't fit, such as a name formatted as a date, passes through unchanged.
 
-## Modifiers
-Modifiers process a value before it's rendered. List them by character in square brackets at the start of a value tag; they apply in order.
-
-    {%[e] person.firstName %}
-    http://www.website.com/profile?id={%[u] person.id %}
-    The file size is: {%[b] file.fileSize %}
-
-The built-in modifiers are:
-
-* `e` escapes XML entities.
-* `u` percent-encodes everything except letters, digits and `-._~`.
-* `b` formats a byte count for people, as in `1.9 MB`.
-
-You can add your own through `TemplateOptions`:
+## Custom functions
+Register your own in `TemplateOptions.functions`. `Functions.text` makes one from a transform of text:
 
     var options = TemplateOptions()
-    options.modifiers["w"] = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+    options.functions["shout"] = Functions.text { $0.uppercased() + "!" }
 
-    let template = try Template("First name is {%[we] firstName %}.", options: options)
+A full function gets the value it's called on and its arguments:
 
-## Functions
-`FUNCTION(value, "name", arguments...)` calls a Swift closure registered by name in `TemplateOptions.functions`. `Functions.standard` includes `uppercaseString`, `lowercaseString`, `capitalizedString`, `length`, `substringToIndex:`, `substringFromIndex:` and `pathWithComponents:`. Naming a function that isn't registered is an error when the template is created.
-
-    {% FUNCTION(person.firstName, "substringToIndex:", 5) %}
-    {% FUNCTION(FUNCTION(person.firstName, "substringToIndex:", 5), "uppercaseString") %}
-    {% FUNCTION(nil, "pathWithComponents:", {"~", "dustin", "photo.jpg"}) %}
-
-Register your own the same way as modifiers:
-
-    options.functions["reversed"] = { receiver, _ in
-       .string(String(receiver.renderedString.reversed()))
+    options.functions["initials"] = { receiver, _ in
+       .string(receiver.renderedString.split(separator: " ").compactMap(\.first).map(String.init).joined())
     }
 
-Function calls are off unless a render turns them on, and render as nothing otherwise:
+    {% person.name | shout %} {% person.name | initials %}
 
-    template.render(context, features: [.functions, .log])
+Any name works, even one like `function` or `all`, and a function you register replaces a standard one with the same name. Calling a function that isn't registered is an error when the template is created.
 
 ## Logging
 To help debug a template, a **log** tag writes an expression's value to `TemplateOptions.log`, which prints to standard error by default. Log tags render nothing, and a render can switch them off by leaving `.log` out of its features.
