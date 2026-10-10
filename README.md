@@ -37,7 +37,7 @@ Value tags, conditions and loops all take expressions, written in a syntax model
 
 * Key paths: `person.name`, `people[0]`, `person["first name"]`, `people[FIRST]`, `people[LAST]`, `people[SIZE]`. A key path through an array collects the key from every element, so `files.name` is an array of names.
 * Collection operators: `@count`, `@sum`, `@avg`, `@min` and `@max`, as in `people.@avg.age`.
-* Arithmetic: `+ - * / %`.
+* Arithmetic: `+ - * / %`. `+` also joins text, as in `"Hi " + person.name`, whenever either side is text that isn't a number.
 * Comparisons: `== = != <> < <= > >=`, `BETWEEN`, `IN`, `CONTAINS`, `BEGINSWITH`, `ENDSWITH`, `LIKE` and `MATCHES`, with `[c]`, `[d]` or `[cd]` to ignore case or diacritics.
 * Pattern matching: `LIKE` matches the whole string against a pattern where `*` stands for any run of characters and `?` for exactly one, so `file LIKE[c] "*.png"`. `MATCHES` takes a regular expression that has to match the whole string, as in `code MATCHES "[A-Z]{3}-[0-9]+"`. A pattern written in the template is checked when the template is created.
 * Logic: `AND`, `OR` and `NOT`, or `&&`, `||` and `!`.
@@ -95,9 +95,11 @@ Pipes apply left to right and need no parentheses when there are no arguments. A
 
 The standard functions are:
 
-* Text: `uppercase`, `lowercase`, `capitalize`, `trim`, `prefix(n)`, `suffix(n)`, `dropFirst(n)`, `dropLast(n)` (where `n` defaults to 1) and `replace(old, new)`.
+* Text: `uppercase`, `lowercase`, `capitalize`, `trim`, `prefix(n)`, `suffix(n)`, `dropFirst(n)`, `dropLast(n)` (where `n` defaults to 1), `replace(old, new)` and `truncate(n)`, which shortens text to `n` characters ending in "…" (or `truncate(n, "...")` for another ending).
+* Counts: `pluralize(singular, plural)`, as in `post.comments.@count | pluralize("comment")` for `3 comments`; `plural` defaults to the singular plus "s".
 * Output: `escape` escapes text for HTML and XML, `urlEncode` percent-encodes everything except letters, digits and `-._~`, and `bytes` shows a byte count for people, as in `1.9 MB`.
-* Lists: `reverse`, for text or a list, and `join(separator)` to join a list into text.
+* Lists: `first`, `last`, `count`, `reverse`, `unique`, `sort` or `sort(key)`, `where(key, value)` (or `where(key)` for elements whose key is true), and `join(separator)` to join a list into text. They chain, as in `people | where("admin") | sort("name") | first`.
+* Numbers: `round` or `round(places)`, `floor`, `ceil` and `abs`.
 * `path(components...)`, as in `path("/avatars", person.id, "photo.jpg")`.
 * `default(fallback)`, which stands in for nil or empty values, as in `person.nickname | default(person.firstName)`.
 
