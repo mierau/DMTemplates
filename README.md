@@ -57,6 +57,8 @@ Templates support **if**, **elseif** and **else**, closed by **endif**. `else if
       You have enough contacts.
     {% endif %}
 
+The parentheses are optional, so `{% if count > 2 %}` and `{% foreach contact in person.contacts %}` work too.
+
 A control tag swallows the line break that follows it, so tags on lines of their own don't leave blank lines behind.
 
 ## Loops

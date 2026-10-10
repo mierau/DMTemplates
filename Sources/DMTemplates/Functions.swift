@@ -191,6 +191,8 @@ public struct Functions: Sendable {
          switch receiver {
          case .null: return arguments.first ?? .null
          case .string(let text) where text.isEmpty: return arguments.first ?? .null
+         case .array(let items) where items.isEmpty: return arguments.first ?? .null
+         case .dictionary(let items) where items.isEmpty: return arguments.first ?? .null
          default: return receiver
          }
       }

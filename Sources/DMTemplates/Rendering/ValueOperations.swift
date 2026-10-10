@@ -68,7 +68,7 @@ extension Aggregate {
 
       case .sum, .avg:
          let numbers = values.compactMap(\.number)
-         let total = numbers.reduce(0.0) { $0 + $1.double }
+         var total: Double { numbers.reduce(0.0) { $0 + $1.double } }
          if self == .avg {
             return .double(numbers.isEmpty ? 0 : total / Double(numbers.count))
          }

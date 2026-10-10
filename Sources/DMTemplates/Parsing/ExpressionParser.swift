@@ -324,13 +324,14 @@ struct ExpressionParser {
 
    /// Reads a `[c]`, `[d]` or `[cd]` suffix after a comparison operator.
    private mutating func parseStringOptions() -> StringOptions {
-      guard isSymbol("["), position + 2 < tokens.count,
+      guard isSymbol("["), position + 3 < tokens.count,
             case .identifier = tokens[position + 1].kind,
             tokens[position + 2].kind == .symbol("]") else {
          return []
       }
       let flags = tokens[position + 1].keyword
-      guard !flags.isEmpty, flags.allSatisfy({ $0 == "C" || $0 == "D" }) else {
+      guard !flags.isEmpty, flags.allSatisfy({ $0 == "C" || $0 == "D" }), startsOperand(tokens[position + 3]) else {
+         // Without an operand after it, `[c]` is a list, as in `x IN [c]`.
          return []
       }
       position += 3
@@ -338,6 +339,20 @@ struct ExpressionParser {
       if flags.contains("C") { options.insert(.caseInsensitive) }
       if flags.contains("D") { options.insert(.diacriticInsensitive) }
       return options
+   }
+
+   /// Whether `token` can begin the operand of a comparison.
+   private func startsOperand(_ token: Token) -> Bool {
+      switch token.kind {
+      case .number, .string, .aggregate:
+         return true
+      case .identifier:
+         return !["AND", "OR"].contains(token.keyword)
+      case .symbol(let symbol):
+         return ["(", "{", "[", "-", "+"].contains(symbol)
+      case .end:
+         return false
+      }
    }
 
    private mutating func parseAdditive() throws -> Expr {

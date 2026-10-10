@@ -171,14 +171,17 @@ final class Program: @unchecked Sendable {
          case .conditional(let branches, let otherwise):
             // Each branch tests its condition and skips to the next branch when
             // false; a branch that runs jumps past the rest when done.
+            // The last branch has nothing to skip when there's no else.
             var exits: [Int] = []
-            for branch in branches {
+            for (number, branch) in branches.enumerated() {
                let condition = add(branch.condition)
                let test = instructions.count
                instructions.append(.branch(condition, otherwise: -1))
                add(branch.body)
-               exits.append(instructions.count)
-               instructions.append(.jump(-1))
+               if otherwise != nil || number < branches.count - 1 {
+                  exits.append(instructions.count)
+                  instructions.append(.jump(-1))
+               }
                instructions[test] = .branch(condition, otherwise: next)
             }
             if let otherwise {

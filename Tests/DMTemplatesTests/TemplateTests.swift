@@ -78,6 +78,12 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(try render("{% size + 1 %}", ["size": "41"]) == "42")
    }
 
+   @Test func onlyDecimalTextIsANumber() throws {
+      let context: TemplateValue = ["inf": "inf", "nan": "NaN", "hex": "0x10", "padded": " 7 "]
+      #expect(try render("[{% inf + 1 %}][{% nan * 2 %}][{% hex + 1 %}][{% padded + 1 %}]", context) == "[inf1][][0x101][8]")
+      #expect(try render("{% inf > 5 %}", context) == "false")
+   }
+
    @Test func collectionOperators() throws {
       #expect(try render("{% people.@count %}", context) == "2")
       #expect(try render("{% people.@avg.age %}", context) == "44")
@@ -110,6 +116,22 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 }
 
 @Suite struct ConditionTests {
+   @Test func parenthesesAreOptional() throws {
+      let source = "{% if count > 2 %}many{% elseif count > 0 %}some{% else if count == 0 %}none{% endif %}"
+      #expect(try render(source, ["count": 3]) == "many")
+      #expect(try render(source, ["count": 1]) == "some")
+      #expect(try render(source, ["count": 0]) == "none")
+      #expect(try render("{% foreach n in items %}{% nIndex %}{% n %}{% end %}", ["items": ["a", "b"]]) == "0a1b")
+      #expect(try render("{% if %}|{% foreach %}", ["if": 1, "foreach": 2]) == "1|2")
+   }
+
+   @Test func parenthesesThatDontWrapTheWholeCondition() throws {
+      #expect(try render("{% if (a) or (b) %}yes{% endif %}", ["b": true]) == "yes")
+      #expect(try render("{% if (a > 1) && (b < 2) %}yes{% else %}no{% endif %}", ["a": 5, "b": 1]) == "yes")
+      #expect(try render("{% if(a) %}{% elseif (b) and (c) %}bc{% endif %}", ["b": true, "c": true]) == "bc")
+      #expect(try render("{% if(name == \")(\") %}paren{% endif %}", ["name": ")("]) == "paren")
+   }
+
    @Test func ifElse() throws {
       let source = "{% if(count > 2) %}many{% else %}few{% endif %}"
       #expect(try render(source, ["count": 3]) == "many")
@@ -158,7 +180,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func operators() throws {
-      let context: TemplateValue = ["name": "Dustin", "size": 50, "tags": ["swift", "objc"], "empty": "", "pattern": "D.*n", "wildcard": "*tin"]
+      let context: TemplateValue = ["name": "Dustin", "size": 50, "tags": ["swift", "objc"], "empty": "", "pattern": "D.*n", "wildcard": "*tin", "c": "objc"]
       let cases: [(String, Bool)] = [
          ("size between {0, 100}", true),
          ("size BETWEEN {51, 100}", false),
@@ -172,6 +194,8 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          ("name CONTAINS 'sti'", true),
          ("tags CONTAINS 'swift'", true),
          ("'objc' IN tags", true),
+         ("c IN [c]", true),
+         ("'swift' IN [c]", false),
          ("'rust' in tags", false),
          ("size >= 50 AND size <= 50", true),
          ("size > 50 OR name == 'Dustin'", true),
@@ -223,6 +247,10 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 }
 
 @Suite struct LoopTests {
+   @Test func anyWhitespaceAroundIn() throws {
+      #expect(try render("{% foreach(n\tin\nitems) %}{% n %}{% endforeach %}", ["items": [1, 2]]) == "12")
+   }
+
    @Test func forEachWithIndex() throws {
       let source = "{% foreach(friend in friends) %}{% friendIndex + 1 %}.{% friend %} {% endforeach %}"
       #expect(try render(source, ["friends": ["Jill", "Bob"]]) == "1.Jill 2.Bob ")
@@ -490,6 +518,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func unclosedBlocks() {
+      #expect(error("{% if(x %}a")?.message == "Expected ) at the end of the tag")
       #expect(error("{% if(x) %}a")?.message == "if is never closed")
       #expect(error("{% foreach(x in y) %}a")?.message == "foreach is never closed")
    }
@@ -576,7 +605,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func standardFunctions() throws {
-      let context: TemplateValue = ["name": "  Dustin Mierau ", "files": ["A.TXT", "B.jpg"], "empty": "", "id": "u-1"]
+      let context: TemplateValue = ["name": "  Dustin Mierau ", "files": ["A.TXT", "B.jpg"], "empty": "", "noFiles": [], "id": "u-1"]
       func render(_ expression: String) throws -> String {
          try Template("{% \(expression) %}").render(context)
       }
@@ -592,6 +621,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(try render("path('~', files)") == "~/A.TXT/B.jpg")
       #expect(try render("empty | default('none')") == "none")
       #expect(try render("missing | default('none')") == "none")
+      #expect(try render("noFiles | default('none')") == "none")
       #expect(try render("id | default('none')") == "u-1")
    }
 
