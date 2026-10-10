@@ -57,9 +57,9 @@ public struct TemplateOptions: Sendable {
    /// Compiles tag expressions. Default: `NativeExpressionCompiler`.
    public var expressionCompiler: any ExpressionCompiler = NativeExpressionCompiler()
 
-   /// Functions templates can call with `FUNCTION(...)`. Default:
-   /// `Functions.standard`. Calls only run when a render turns on
-   /// `RenderFeatures.functions`.
+   /// Functions templates can call, as in `name.uppercased()` or
+   /// `name | uppercased`. Default: `Functions.standard`. A render can turn
+   /// calls off by leaving `RenderFeatures.functions` out of its features.
    ///
    /// These belong to `expressionCompiler` when it's a
    /// `NativeExpressionCompiler`; other compilers ignore them.

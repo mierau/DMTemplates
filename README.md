@@ -42,6 +42,7 @@ Value tags, conditions and loops all take expressions, written in a syntax model
 * Comparisons: `== = != <> < <= > >=`, `BETWEEN`, `IN`, `CONTAINS`, `BEGINSWITH` and `ENDSWITH`, with `[c]`, `[d]` or `[cd]` to ignore case or diacritics.
 * Logic: `AND`, `OR` and `NOT`, or `&&`, `||` and `!`.
 * Literals: strings, numbers, `true`/`false`/`YES`/`NO`, `nil`, and arrays written `{1, 2}` or `[1, 2]`.
+* Function calls: `name.uppercased()`, `name | prefix(3)`, `path("~", name)`. See [Functions](#functions).
 
 `LIKE`, `MATCHES`, `ANY`, `ALL`, `SOME`, `NONE`, `SUBQUERY`, `CAST` and `TERNARY` are not supported and are reported as errors.
 
@@ -69,7 +70,7 @@ A **foreach** loop runs over an array, which can come from a key path, an expres
       Contact: {% contactName %}
     {% endforeach %}
 
-    {% foreach(filename in files.name.lowercaseString) %}
+    {% foreach(filename in files.name | lowercased) %}
       Lowercase file name: {% filename %}
     {% endforeach %}
 
@@ -127,21 +128,43 @@ You can add your own through `TemplateOptions`:
     let template = try Template("First name is {%[we] firstName %}.", options: options)
 
 ## Functions
-`FUNCTION(value, "name", arguments...)` calls a Swift closure registered by name in `TemplateOptions.functions`. `Functions.standard` includes `uppercaseString`, `lowercaseString`, `capitalizedString`, `length`, `substringToIndex:`, `substringFromIndex:` and `pathWithComponents:`. Naming a function that isn't registered is an error when the template is created.
+Call a function on a value the way you'd call a method in Swift, or pass the value along with a pipe. These all mean the same thing:
 
-    {% FUNCTION(person.firstName, "substringToIndex:", 5) %}
-    {% FUNCTION(FUNCTION(person.firstName, "substringToIndex:", 5), "uppercaseString") %}
-    {% FUNCTION(nil, "pathWithComponents:", {"~", "dustin", "photo.jpg"}) %}
+    {% person.firstName.prefix(1).uppercased() %}
+    {% person.firstName | prefix(1) | uppercased %}
+    {% uppercased(prefix(person.firstName, 1)) %}
 
-Register your own the same way as modifiers:
+A pipe needs no parentheses when there are no arguments, and binds as tightly as `.`, so it works inside conditions:
 
-    options.functions["reversed"] = { receiver, _ in
-       .string(String(receiver.renderedString.reversed()))
+    {% if(post.title | lowercased BEGINSWITH "draft") %}(unpublished){% endif %}
+    {% (item.price * item.quantity) | default(0) as currency %}
+
+The standard functions are named after their Swift counterparts:
+
+* `uppercased`, `lowercased`, `capitalized` and `trimmed`.
+* `prefix(n)`, `suffix(n)`, `dropFirst(n)` and `dropLast(n)`, where `n` defaults to 1 for the `drop` functions.
+* `replacing(old, new)`.
+* `reversed`, for text or a list, and `joined(separator)` to join a list into text.
+* `path(components...)`, as in `path("/avatars", person.id, "photo.jpg")`.
+* `default(fallback)`, which stands in for nil or empty values, as in `person.nickname | default(person.firstName)`.
+
+Text functions applied to a list apply to each element, so `files.name | lowercased | joined(", ")` lists every name in lowercase.
+
+Register your own in `TemplateOptions.functions`. A function gets the value it's called on and its arguments:
+
+    options.functions["initials"] = { receiver, _ in
+       .string(receiver.renderedString.split(separator: " ").compactMap(\.first).map(String.init).joined())
     }
 
-Function calls are off unless a render turns them on, and render as nothing otherwise:
+    {% person.name | initials %}
 
-    template.render(context, features: [.functions, .log])
+Calling a function that isn't registered is an error when the template is created. A render can turn calls off by leaving `.functions` out of its features, and they render as nothing:
+
+    template.render(context, features: [.log])
+
+Templates written for NSExpression keep working: `FUNCTION(value, "name", arguments...)` calls the same functions, and `uppercaseString`, `lowercaseString`, `capitalizedString`, `length`, `substringToIndex:`, `substringFromIndex:` and `pathWithComponents:` are registered too.
+
+    {% FUNCTION(FUNCTION(person.firstName, "substringToIndex:", 5), "uppercaseString") %}
 
 ## Logging
 To help debug a template, a **log** tag writes an expression's value to `TemplateOptions.log`, which prints to standard error by default. Log tags render nothing, and a render can switch them off by leaving `.log` out of its features.

@@ -214,6 +214,8 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       let context: TemplateValue = ["files": [["name": "A.TXT"], ["name": "B.JPG"]]]
       let source = "{% foreach(filename in files.name.lowercaseString) %}{% filename %};{% endforeach %}"
       #expect(try render(source, context) == "a.txt;b.jpg;")
+      let piped = "{% foreach(filename in files.name | lowercased) %}{% filename %};{% endforeach %}"
+      #expect(try render(piped, context) == "a.txt;b.jpg;")
    }
 
    @Test func nestedLoopsSeeOuterVariables() throws {
@@ -454,10 +456,68 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 @Suite struct FunctionTests {
    let context: TemplateValue = ["person": ["firstName": "Dustin"]]
 
-   @Test func functionsAreOffByDefault() throws {
-      let template = try Template("[{% FUNCTION(person.firstName, 'uppercaseString') %}]")
-      #expect(template.render(context) == "[]")
-      #expect(template.render(context, features: [.functions]) == "[DUSTIN]")
+   @Test func functionsAreOnByDefaultAndCanBeTurnedOff() throws {
+      let template = try Template("[{% person.firstName | uppercased %}]")
+      #expect(template.render(context) == "[DUSTIN]")
+      #expect(template.render(context, features: [.log]) == "[]")
+   }
+
+   @Test func methodPipeAndCallSpellingsAgree() throws {
+      let spellings = [
+         "{% person.firstName.prefix(3).uppercased() %}",
+         "{% person.firstName | prefix(3) | uppercased %}",
+         "{% person.firstName | prefix(3) | uppercased() %}",
+         "{% uppercased(prefix(person.firstName, 3)) %}",
+         "{% FUNCTION(FUNCTION(person.firstName, 'substringToIndex:', 3), 'uppercaseString') %}",
+      ]
+      for source in spellings {
+         #expect(try Template(source).render(context) == "DUS", "\(source)")
+      }
+   }
+
+   @Test func pipesBindTighterThanOperators() throws {
+      #expect(try Template("{% if(person.firstName | lowercased == 'dustin') %}yes{% endif %}").render(context) == "yes")
+      var options = TemplateOptions()
+      options.functions["double"] = { receiver, _ in .int((Int(receiver.renderedString) ?? 0) * 2) }
+      #expect(try Template("{% 1 + 2 | double %}", options: options).render([:]) == "5")
+      #expect(try Template("{% (1 + 2) | double %}", options: options).render([:]) == "6")
+   }
+
+   @Test func pathsContinueAfterCalls() throws {
+      let template = try Template("{% people.reversed()[0].name %} {% people.name | reversed | joined(', ') %}")
+      #expect(template.render(["people": [["name": "Ann"], ["name": "Ollie"]]]) == "Ollie Ollie, Ann")
+   }
+
+   @Test func standardFunctions() throws {
+      let context: TemplateValue = ["name": "  Dustin Mierau ", "files": ["A.TXT", "B.jpg"], "empty": "", "id": "u-1"]
+      func render(_ expression: String) throws -> String {
+         try Template("{% \(expression) %}").render(context)
+      }
+      #expect(try render("name | trimmed") == "Dustin Mierau")
+      #expect(try render("name | trimmed | lowercased | capitalized") == "Dustin Mierau")
+      #expect(try render("name | trimmed | suffix(6)") == "Mierau")
+      #expect(try render("name | trimmed | dropFirst") == "ustin Mierau")
+      #expect(try render("name | trimmed | dropLast(7)") == "Dustin")
+      #expect(try render("name | trimmed | replacing(' ', '-')") == "Dustin-Mierau")
+      #expect(try render("name | trimmed | reversed") == "uareiM nitsuD")
+      #expect(try render("files | lowercased | joined(', ')") == "a.txt, b.jpg")
+      #expect(try render("path('/avatars', id, 'photo.jpg')") == "/avatars/u-1/photo.jpg")
+      #expect(try render("path('~', files)") == "~/A.TXT/B.jpg")
+      #expect(try render("empty | default('none')") == "none")
+      #expect(try render("missing | default('none')") == "none")
+      #expect(try render("id | default('none')") == "u-1")
+   }
+
+   @Test func unknownCallsFailAtParse() {
+      #expect(throws: TemplateError.self) { try Template("{% name | shout %}") }
+      #expect(throws: TemplateError.self) { try Template("{% name.shout() %}") }
+      #expect(throws: TemplateError.self) { try Template("{% shout(name) %}") }
+      #expect(throws: TemplateError.self) { try Template("{% name | 'x' %}") }
+   }
+
+   @Test func keysNamedLikeFunctionsAreStillKeys() throws {
+      let template = try Template("{% item.prefix %} {% item.prefix | uppercased %}")
+      #expect(template.render(["item": ["prefix": "mr"]]) == "mr MR")
    }
 
    @Test func readmeExamples() throws {
@@ -705,14 +765,24 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(template.render(context, features: [.functions]) == "Tom &amp; Jerry|cba")
    }
 
+   @Test func naturalFunctionExamples() throws {
+      let template = try Template("""
+         {% person.firstName.prefix(5).uppercased() %} \
+         {% person.firstName | prefix(5) | uppercased %} \
+         {% path("~", "dustin", "photo.jpg") %}
+         """)
+      let context: TemplateValue = ["person": ["firstName": "Dustin"]]
+      #expect(template.render(context) == "DUSTI DUSTI ~/dustin/photo.jpg")
+   }
+
    @Test func functionExamples() throws {
       let template = try Template("""
          {% FUNCTION(FUNCTION(person.firstName, "substringToIndex:", 5), "uppercaseString") %} \
          {% FUNCTION(nil, "pathWithComponents:", {"~", "dustin", "photo.jpg"}) %}
          """)
       let context: TemplateValue = ["person": ["firstName": "Dustin"]]
-      #expect(template.render(context, features: [.functions]) == "DUSTI ~/dustin/photo.jpg")
-      #expect(template.render(context) == " ")
+      #expect(template.render(context) == "DUSTI ~/dustin/photo.jpg")
+      #expect(template.render(context, features: []) == " ")
    }
 
    @Test func formatPatterns() throws {
