@@ -220,8 +220,12 @@ struct Interpreter {
          return .bool(regexMatch(regexes[Int(regex)], evaluate(lhs, in: scope), options))
 
       case .function(let function, let span):
-         let values = span.range.map { evaluate(operands[$0], in: scope) }
-         return functions[Int(function)](values[0], Array(values.dropFirst()))
+         // The receiver comes first. Most calls have no arguments, and mapping
+         // an empty range allocates nothing.
+         let slots = span.range
+         let receiver = evaluate(operands[slots.lowerBound], in: scope)
+         let arguments = slots.dropFirst().map { evaluate(operands[$0], in: scope) }
+         return functions[Int(function)](receiver, arguments)
       }
    }
 

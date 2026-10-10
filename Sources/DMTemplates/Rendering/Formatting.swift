@@ -187,9 +187,19 @@ extension TemplateValue {
       case .date(let date):
          return date
       case .string(let text):
+         // A failed parse is slow, so only try the forms the text could be in.
+         guard text.utf8.first?.isDigit == true else {
+            return nil
+         }
+         guard text.contains("T") else {
+            return try? Date.ISO8601FormatStyle(timeZone: timeZone).year().month().day().parse(text)
+         }
+         if text.contains(".") {
+            return (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text))
+               ?? (try? Date.ISO8601FormatStyle().parse(text))
+         }
          return (try? Date.ISO8601FormatStyle().parse(text))
             ?? (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text))
-            ?? (try? Date.ISO8601FormatStyle(timeZone: timeZone).year().month().day().parse(text))
       case .int, .double:
          return number.map { Date(timeIntervalSince1970: $0.double) }
       default:

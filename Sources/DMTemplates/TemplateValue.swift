@@ -223,12 +223,27 @@ extension TemplateValue {
       case .double(let v): return .double(v)
       case .bool(let v): return .int(v ? 1 : 0)
       case .string(let v):
-         let trimmed = v.trimmingCharacters(in: .whitespaces)
-         if let i = Int(trimmed) { return .int(i) }
-         if let d = Double(trimmed) { return .double(d) }
-         return nil
+         return Self.number(reading: v)
       default:
          return nil
       }
+   }
+
+   /// Decimal text as a number, ignoring spaces around it. Text Swift would
+   /// otherwise read as a number, such as "nan", "inf" or "0x10", isn't one.
+   private static func number(reading text: String) -> Number? {
+      var text = Substring(text)
+      if text.first?.isWhitespace == true || text.last?.isWhitespace == true {
+         text = Substring(text.trimmingCharacters(in: .whitespaces))
+      }
+      let isDecimal = text.utf8.allSatisfy { byte in
+         byte.isDigit || byte == UInt8(ascii: ".") || byte == UInt8(ascii: "-") || byte == UInt8(ascii: "+") || byte == UInt8(ascii: "e") || byte == UInt8(ascii: "E")
+      }
+      guard isDecimal else {
+         return nil
+      }
+      if let i = Int(text) { return .int(i) }
+      if let d = Double(text) { return .double(d) }
+      return nil
    }
 }

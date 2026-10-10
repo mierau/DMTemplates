@@ -221,7 +221,7 @@ struct TemplateParser {
       if isWord("endif", content) { return .endIf }
       if isWord("endforeach", content) { return .endForEach }
       if isWord("end", content) { return .end }
-      if let statement = try call("foreach", in: content) { return .forEach(statement) }
+      if let statement = try call("foreach", in: content, wrapped: true) { return .forEach(statement) }
       if let statement = try call("log", in: content) { return .log(statement) }
       return .value(content)
    }
@@ -230,8 +230,11 @@ struct TemplateParser {
       content.count == word.utf8.count && source.matches(word, at: content.lowerBound, before: content.upperBound)
    }
 
-   /// If `content` is `name( ... )`, the range inside the parentheses.
-   private func call(_ name: String, in content: Range<Int>) throws -> Range<Int>? {
+   /// If `content` is `name( ... )`, the expression after the name: what's
+   /// inside the parentheses when they wrap the rest of the tag, as in
+   /// `if(a)`, or else everything from the `(` on, as in `if (a) or (b)`.
+   /// With `wrapped`, the parentheses have to wrap the rest of the tag.
+   private func call(_ name: String, in content: Range<Int>, wrapped: Bool = false) throws -> Range<Int>? {
       guard source.matches(name, at: content.lowerBound, before: content.upperBound) else {
          return nil
       }
@@ -240,16 +243,24 @@ struct TemplateParser {
          paren += 1
       }
       guard paren < content.upperBound, source.bytes[paren] == UInt8(ascii: "(") else {
+         if paren > content.lowerBound + name.utf8.count, paren < content.upperBound, name != "log" {
+            // `if x`: a keyword, a space and more, which can't be a value.
+            throw error("\(name) needs parentheses, as in \(name)(...)", at: paren)
+         }
          return nil
       }
-      guard source.bytes[content.upperBound - 1] == UInt8(ascii: ")") else {
+      let close = source.closingParenthesis(from: paren, before: content.upperBound)
+      if close == content.upperBound - 1 {
+         let statement = source.trimmed((paren + 1)..<(content.upperBound - 1))
+         guard !statement.isEmpty else {
+            throw error("Expected an expression inside ( )", at: paren)
+         }
+         return statement
+      }
+      guard close != nil, !wrapped else {
          throw error("Expected ) at the end of the tag", at: content.upperBound - 1)
       }
-      let statement = source.trimmed((paren + 1)..<(content.upperBound - 1))
-      guard !statement.isEmpty else {
-         throw error("Expected an expression inside ( )", at: paren)
-      }
-      return statement
+      return paren..<content.upperBound
    }
 
    /// `else if( ... )`, the spelling the earlier Swift draft used.
@@ -319,7 +330,7 @@ struct TemplateParser {
    /// `foreach(item in items)`. The loop gets two slots: the item, and its
    /// index as `itemIndex`.
    private mutating func openLoop(_ statement: Range<Int>, at offset: Int) throws {
-      guard let separator = source.findKeyword(" in ", in: statement) else {
+      guard let separator = source.findWord("in", in: statement) else {
          throw error("foreach needs the form foreach(item in items)", at: offset)
       }
       let nameRange = source.trimmed(statement.lowerBound..<separator.lowerBound)
@@ -330,7 +341,7 @@ struct TemplateParser {
 
       // The sequence is evaluated outside the loop, so compile it before the
       // loop's variables come into scope.
-      let sequence = try compile(separator.upperBound..<statement.upperBound)
+      let sequence = try compile(source.trimmed(separator.upperBound..<statement.upperBound))
       let slot = locals.count
       locals.append(name)
       locals.append(name + "Index")

@@ -70,9 +70,9 @@ struct SourceText {
       return true
    }
 
-   /// Finds `keyword` (such as " in ") in `range`, ignoring case and anything
-   /// inside quotes.
-   func findKeyword(_ keyword: String, in range: Range<Int>) -> Range<Int>? {
+   /// Finds `word` (such as "in") in `range` with whitespace on both sides,
+   /// ignoring case and anything inside quotes.
+   func findWord(_ word: String, in range: Range<Int>) -> Range<Int>? {
       var quote: UInt8?
       var i = range.lowerBound
       while i < range.upperBound {
@@ -88,8 +88,44 @@ struct SourceText {
          else if byte == UInt8(ascii: "\"") || byte == UInt8(ascii: "'") {
             quote = byte
          }
-         else if matches(keyword, at: i, before: range.upperBound) {
-            return i..<(i + keyword.utf8.count)
+         else if i > range.lowerBound, bytes[i - 1].isSpace, matches(word, at: i, before: range.upperBound) {
+            let end = i + word.utf8.count
+            if end < range.upperBound, bytes[end].isSpace {
+               return i..<end
+            }
+         }
+         i += 1
+      }
+      return nil
+   }
+
+   /// The position of the `)` that closes the `(` at `open`, skipping
+   /// anything inside quotes, or nil when it isn't closed before `end`.
+   func closingParenthesis(from open: Int, before end: Int) -> Int? {
+      var depth = 0
+      var quote: UInt8?
+      var i = open
+      while i < end {
+         let byte = bytes[i]
+         if let close = quote {
+            if byte == UInt8(ascii: "\\") {
+               i += 1
+            }
+            else if byte == close {
+               quote = nil
+            }
+         }
+         else if byte == UInt8(ascii: "\"") || byte == UInt8(ascii: "'") {
+            quote = byte
+         }
+         else if byte == UInt8(ascii: "(") {
+            depth += 1
+         }
+         else if byte == UInt8(ascii: ")") {
+            depth -= 1
+            if depth == 0 {
+               return i
+            }
          }
          i += 1
       }
