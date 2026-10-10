@@ -54,8 +54,8 @@ public struct TemplateOptions: Sendable {
    /// Compiles tag expressions. Default: `NativeExpressionCompiler`.
    public var expressionCompiler: any ExpressionCompiler = NativeExpressionCompiler()
 
-   /// Functions templates can call, as in `name.uppercased()` or
-   /// `name | uppercased`. Default: `Functions.standard`. Templates also get
+   /// Functions templates can call, as in `name.uppercase()` or
+   /// `name | uppercase`. Default: `Functions.standard`. Templates also get
    /// the formatting functions `date`, `time`, `dateTime`, `iso8601`,
    /// `relative`, `number`, `percent`, `currency` and `format(pattern)`, which
    /// follow `locale`, `timeZone` and `currencyCode`; a function registered

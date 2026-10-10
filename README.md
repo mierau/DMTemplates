@@ -41,7 +41,7 @@ Value tags, conditions and loops all take expressions, written in a syntax model
 * Comparisons: `== = != <> < <= > >=`, `BETWEEN`, `IN`, `CONTAINS`, `BEGINSWITH` and `ENDSWITH`, with `[c]`, `[d]` or `[cd]` to ignore case or diacritics.
 * Logic: `AND`, `OR` and `NOT`, or `&&`, `||` and `!`.
 * Literals: strings, numbers, `true`/`false`/`YES`/`NO`, `nil`, and arrays written `{1, 2}` or `[1, 2]`.
-* Function calls: `name.uppercased()`, `name | prefix(3)`, `path("~", name)`. See [Functions](#functions).
+* Function calls: `name.uppercase()`, `name | prefix(3)`, `path("~", name)`. See [Functions](#functions).
 
 `LIKE`, `MATCHES`, `ANY`, `ALL`, `SOME`, `NONE`, `SUBQUERY`, `CAST` and `TERNARY` are not supported and are reported as errors.
 
@@ -69,7 +69,7 @@ A **foreach** loop runs over an array, which can come from a key path, an expres
       Contact: {% contactName %}
     {% endforeach %}
 
-    {% foreach(filename in files.name | lowercased) %}
+    {% foreach(filename in files.name | lowercase) %}
       Lowercase file name: {% filename %}
     {% endforeach %}
 
@@ -82,25 +82,25 @@ Inside a loop, the current index is available as the loop variable's name follow
 ## Functions
 Functions transform a value before it's shown. Pass a value through them with a pipe, or call them the way you'd call a method in Swift. These all mean the same thing:
 
-    {% person.firstName | prefix(1) | uppercased %}
-    {% person.firstName.prefix(1).uppercased() %}
-    {% uppercased(prefix(person.firstName, 1)) %}
+    {% person.firstName | prefix(1) | uppercase %}
+    {% person.firstName.prefix(1).uppercase() %}
+    {% uppercase(prefix(person.firstName, 1)) %}
 
 Pipes apply left to right and need no parentheses when there are no arguments. A pipe binds as tightly as `.`, so it works inside conditions, and parentheses pipe a whole expression:
 
-    {% person.bio | trimmed | escaped %}
-    {% if(post.title | lowercased BEGINSWITH "draft") %}(unpublished){% endif %}
+    {% person.bio | trim | escape %}
+    {% if(post.title | lowercase BEGINSWITH "draft") %}(unpublished){% endif %}
     {% (item.price * item.quantity) | currency %}
 
 The standard functions are:
 
-* Text: `uppercased`, `lowercased`, `capitalized`, `trimmed`, `prefix(n)`, `suffix(n)`, `dropFirst(n)`, `dropLast(n)` (where `n` defaults to 1) and `replacing(old, new)`.
-* Output: `escaped` escapes text for HTML and XML, `urlEncoded` percent-encodes everything except letters, digits and `-._~`, and `bytes` shows a byte count for people, as in `1.9 MB`.
-* Lists: `reversed`, for text or a list, and `joined(separator)` to join a list into text.
+* Text: `uppercase`, `lowercase`, `capitalize`, `trim`, `prefix(n)`, `suffix(n)`, `dropFirst(n)`, `dropLast(n)` (where `n` defaults to 1) and `replace(old, new)`.
+* Output: `escape` escapes text for HTML and XML, `urlEncode` percent-encodes everything except letters, digits and `-._~`, and `bytes` shows a byte count for people, as in `1.9 MB`.
+* Lists: `reverse`, for text or a list, and `join(separator)` to join a list into text.
 * `path(components...)`, as in `path("/avatars", person.id, "photo.jpg")`.
 * `default(fallback)`, which stands in for nil or empty values, as in `person.nickname | default(person.firstName)`.
 
-Text functions applied to a list apply to each element, so `files.name | lowercased | joined(", ")` lists every name in lowercase.
+Text functions applied to a list apply to each element, so `files.name | lowercase | join(", ")` lists every name in lowercase.
 
 ## Formatting
 Formatting functions show dates and numbers for people:

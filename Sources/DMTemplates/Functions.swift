@@ -8,9 +8,9 @@ import Foundation
 /// the way Swift calls a method, through a pipe, or with the value as the
 /// first argument; all three mean the same:
 ///
-///     {% person.name.prefix(1).uppercased() %}
-///     {% person.name | prefix(1) | uppercased %}
-///     {% uppercased(prefix(person.name, 1)) %}
+///     {% person.name.prefix(1).uppercase() %}
+///     {% person.name | prefix(1) | uppercase %}
+///     {% uppercase(prefix(person.name, 1)) %}
 ///
 /// Templates can only call functions registered here.
 ///
@@ -32,16 +32,16 @@ public struct Functions: Sendable {
 
    /// Common text and list functions, named after their Swift counterparts:
    ///
-   /// - `uppercased`, `lowercased`, `capitalized`, `trimmed`
+   /// - `uppercase`, `lowercase`, `capitalize`, `trim`
    /// - `prefix(n)`, `suffix(n)`, `dropFirst(n)`, `dropLast(n)`; n defaults to 1
    ///   for the `drop` functions
-   /// - `replacing(old, new)`
-   /// - `reversed`, which reverses text or a list
-   /// - `joined(separator)`, which joins a list into text
+   /// - `replace(old, new)`
+   /// - `reverse`, which reverses text or a list
+   /// - `join(separator)`, which joins a list into text
    /// - `path(components...)`, which joins its receiver and arguments with `/`
    /// - `default(fallback)`, the fallback when the value is nil or empty
-   /// - `escaped`, which escapes text for HTML and XML
-   /// - `urlEncoded`, which percent-encodes everything but letters, digits
+   /// - `escape`, which escapes text for HTML and XML
+   /// - `urlEncode`, which percent-encodes everything but letters, digits
    ///   and `-._~`
    /// - `bytes`, which shows a byte count for people, as in `1.9 MB`
    ///
@@ -49,14 +49,14 @@ public struct Functions: Sendable {
    /// which follow the template's locale; see `TemplateOptions.locale`.
    ///
    /// Text functions applied to a list apply to each element, so
-   /// `files.name | lowercased` lowercases every name.
+   /// `files.name | lowercase` lowercases every name.
    public static let standard: Functions = {
       var functions = Functions()
 
-      functions["uppercased"] = textFunction { text, _ in .string(text.uppercased()) }
-      functions["lowercased"] = textFunction { text, _ in .string(text.lowercased()) }
-      functions["capitalized"] = textFunction { text, _ in .string(text.capitalized) }
-      functions["trimmed"] = textFunction { text, _ in .string(text.trimmingCharacters(in: .whitespacesAndNewlines)) }
+      functions["uppercase"] = textFunction { text, _ in .string(text.uppercased()) }
+      functions["lowercase"] = textFunction { text, _ in .string(text.lowercased()) }
+      functions["capitalize"] = textFunction { text, _ in .string(text.capitalized) }
+      functions["trim"] = textFunction { text, _ in .string(text.trimmingCharacters(in: .whitespacesAndNewlines)) }
       functions["prefix"] = textFunction { text, arguments in
          guard let count = integer(arguments.first), count >= 0 else { return .null }
          return .string(String(text.prefix(count)))
@@ -73,17 +73,17 @@ public struct Functions: Sendable {
          guard let count = arguments.isEmpty ? 1 : integer(arguments.first), count >= 0 else { return .null }
          return .string(String(text.dropLast(count)))
       }
-      functions["replacing"] = textFunction { text, arguments in
+      functions["replace"] = textFunction { text, arguments in
          guard arguments.count == 2, let target = string(arguments[0]), !target.isEmpty else { return .null }
          return .string(text.replacingOccurrences(of: target, with: arguments[1].renderedString))
       }
-      functions["reversed"] = { receiver, _ in
+      functions["reverse"] = { receiver, _ in
          switch receiver {
          case .array(let items): return .array(items.reversed())
          default: return string(receiver).map { .string(String($0.reversed())) } ?? .null
          }
       }
-      functions["joined"] = { receiver, arguments in
+      functions["join"] = { receiver, arguments in
          guard case .array(let items) = receiver else { return string(receiver).map { .string($0) } ?? .null }
          let separator = arguments.first?.renderedString ?? ""
          return .string(items.filter { $0 != .null }.map(\.renderedString).joined(separator: separator))
@@ -99,8 +99,8 @@ public struct Functions: Sendable {
          }
          return parts.isEmpty ? .null : .string(joinedPath(parts))
       }
-      functions["escaped"] = textFunction { text, _ in .string(escapingXMLEntities(text)) }
-      functions["urlEncoded"] = textFunction { text, _ in .string(addingPercentEncoding(text)) }
+      functions["escape"] = textFunction { text, _ in .string(escapingXMLEntities(text)) }
+      functions["urlEncode"] = textFunction { text, _ in .string(addingPercentEncoding(text)) }
       functions["bytes"] = textFunction { text, _ in .string(readableByteCount(Int64(leadingIntegerOf: text))) }
       functions["default"] = { receiver, arguments in
          switch receiver {
