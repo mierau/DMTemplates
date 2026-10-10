@@ -158,7 +158,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func operators() throws {
-      let context: TemplateValue = ["name": "Dustin", "size": 50, "tags": ["swift", "objc"], "empty": ""]
+      let context: TemplateValue = ["name": "Dustin", "size": 50, "tags": ["swift", "objc"], "empty": "", "pattern": "D.*n", "wildcard": "*tin"]
       let cases: [(String, Bool)] = [
          ("size between {0, 100}", true),
          ("size BETWEEN {51, 100}", false),
@@ -181,6 +181,29 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          ("missing == nil", true),
          ("tags.@count == 2 && size => 10", true),
          ("'café' ==[cd] 'CAFE'", true),
+         ("name LIKE 'D*n'", true),
+         ("name LIKE 'D*s'", false),
+         ("name LIKE 'Dust?n'", true),
+         ("name LIKE 'Dus?n'", false),
+         ("name LIKE 'dustin'", false),
+         ("name LIKE[c] 'dus*'", true),
+         ("name LIKE '*'", true),
+         ("empty LIKE '*'", true),
+         ("empty LIKE '?*'", false),
+         ("'a*b' LIKE 'a\\\\*b'", true),
+         ("'axb' LIKE 'a\\\\*b'", false),
+         ("'café' LIKE[cd] 'CAF?'", true),
+         ("size LIKE '5*'", false),
+         ("name MATCHES 'D[a-z]+'", true),
+         ("name MATCHES 'Dus'", false),
+         ("name MATCHES 'd.*'", false),
+         ("name MATCHES[c] 'd.*'", true),
+         ("name MATCHES 'Bob|Dustin'", true),
+         ("name MATCHES 'Dus|Dustin'", true),
+         ("name MATCHES pattern", true),
+         ("name LIKE wildcard", true),
+         ("'café' MATCHES[d] 'cafe'", true),
+         ("size MATCHES '50'", false),
       ]
       for (condition, expected) in cases {
          let output = try render("{% if(\(condition)) %}yes{% else %}no{% endif %}", context)
@@ -441,9 +464,15 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func unsupportedSyntaxFailsAtParse() {
-      #expect(error("{% if(name LIKE 'D*') %}{% endif %}") != nil)
+      #expect(error("{% if(name LIKE) %}{% endif %}") != nil)
       #expect(error("{% $var %}") != nil)
       #expect(error("{% people.@distinctUnionOfObjects.name %}") != nil)
+   }
+
+   @Test func badRegularExpressionFailsAtParse() throws {
+      let problem = try #require(error("{% if(name MATCHES '(unclosed') %}{% endif %}"))
+      #expect(problem.message.hasPrefix("Invalid regular expression"))
+      #expect(error("{% if(name MATCHES 'a)(b') %}{% endif %}") != nil)
    }
 
    @Test func malformedForEach() {
