@@ -44,6 +44,14 @@ public struct Functions: Sendable {
    /// - `urlEncode`, which percent-encodes everything but letters, digits
    ///   and `-._~`
    /// - `bytes`, which shows a byte count for people, as in `1.9 MB`
+   /// - `truncate(n, ending)`, which shortens text to at most `n` characters,
+   ///   ending with `ending` ("…" by default) when it cuts
+   /// - `pluralize(singular, plural)`, as in `3 | pluralize("comment")`,
+   ///   which gives `3 comments`; `plural` defaults to `singular` plus "s"
+   /// - `sort` and `sort(key)`, `where(key, value)` and `where(key)` for the
+   ///   elements whose key is truthy, and `unique`
+   /// - `first`, `last` and `count`
+   /// - `round(places)`, `floor`, `ceil` and `abs`
    ///
    /// Templates also get formatting functions, such as `date` and `currency`,
    /// which follow the template's locale; see `TemplateOptions.locale`.
@@ -102,6 +110,83 @@ public struct Functions: Sendable {
       functions["escape"] = textFunction { text, _ in .string(escapingXMLEntities(text)) }
       functions["urlEncode"] = textFunction { text, _ in .string(addingPercentEncoding(text)) }
       functions["bytes"] = textFunction { text, _ in .string(readableByteCount(Int64(leadingIntegerOf: text))) }
+      functions["truncate"] = textFunction { text, arguments in
+         guard let limit = integer(arguments.first), limit >= 0 else { return .null }
+         guard text.count > limit else { return .string(text) }
+         let ending = arguments.count > 1 ? arguments[1].renderedString : "…"
+         let kept = max(0, limit - ending.count)
+         return .string(String(text.prefix(kept)).trimmingCharacters(in: .whitespaces) + ending)
+      }
+      functions["pluralize"] = { receiver, arguments in
+         guard let count = receiver.number, let singular = arguments.first.flatMap({ string($0) }) else { return .null }
+         let plural = arguments.count > 1 ? arguments[1].renderedString : singular + "s"
+         let isOne: Bool
+         switch count {
+         case .int(let v): isOne = v == 1 || v == -1
+         case .double(let v): isOne = v == 1 || v == -1
+         }
+         return .string("\(receiver.renderedString) \(isOne ? singular : plural)")
+      }
+
+      functions["sort"] = { receiver, arguments in
+         guard case .array(let items) = receiver else { return receiver }
+         let key = arguments.first.flatMap({ string($0) })
+         func sortKey(_ item: TemplateValue) -> TemplateValue { key.map { item.member($0) } ?? item }
+         // Values that can't be ordered, such as nil, go last.
+         let sorted = items.enumerated().sorted { a, b in
+            let x = sortKey(a.element), y = sortKey(b.element)
+            switch (x == .null, y == .null) {
+            case (true, false): return false
+            case (false, true): return true
+            default: break
+            }
+            let order = compareValues(x, y, []) ?? 0
+            return order == 0 ? a.offset < b.offset : order < 0
+         }
+         return .array(sorted.map(\.element))
+      }
+      functions["where"] = { receiver, arguments in
+         guard case .array(let items) = receiver, let key = arguments.first.flatMap({ string($0) }) else { return receiver }
+         if arguments.count > 1 {
+            return .array(items.filter { valuesEqual($0.member(key), arguments[1], []) })
+         }
+         return .array(items.filter { $0.member(key).isTruthy })
+      }
+      functions["unique"] = { receiver, _ in
+         guard case .array(let items) = receiver else { return receiver }
+         var seen = Set<TemplateValue>()
+         return .array(items.filter { seen.insert($0).inserted })
+      }
+      functions["first"] = { receiver, _ in
+         switch receiver {
+         case .string(let text): return text.first.map { .string(String($0)) } ?? .null
+         default: return receiver.firstElement
+         }
+      }
+      functions["last"] = { receiver, _ in
+         switch receiver {
+         case .string(let text): return text.last.map { .string(String($0)) } ?? .null
+         default: return receiver.lastElement
+         }
+      }
+      functions["count"] = { receiver, _ in receiver.elementCount }
+
+      functions["round"] = roundingFunction { number, arguments in
+         let places = integer(arguments.first) ?? 0
+         guard places > 0 else { return whole(number.rounded()) }
+         let scale = pow(10, Double(min(places, 15)))
+         return .double((number * scale).rounded() / scale)
+      }
+      functions["floor"] = roundingFunction { number, _ in whole(number.rounded(.down)) }
+      functions["ceil"] = roundingFunction { number, _ in whole(number.rounded(.up)) }
+      functions["abs"] = { receiver, _ in
+         switch receiver.number {
+         case .int(let v)?: return v == .min ? .double(-Double(v)) : .int(Swift.abs(v))
+         case .double(let v)?: return .double(Swift.abs(v))
+         case nil: return receiver
+         }
+      }
+
       functions["default"] = { receiver, arguments in
          switch receiver {
          case .null: return arguments.first ?? .null
@@ -144,6 +229,28 @@ public struct Functions: Sendable {
          return string(receiver).map { body($0, arguments) } ?? .null
       }
       return apply
+   }
+
+   /// A function on numbers. Lists apply it to each element; whole numbers
+   /// and values that aren't numbers stay as they are.
+   static func roundingFunction(_ body: @escaping @Sendable (Double, [TemplateValue]) -> TemplateValue) -> Function {
+      @Sendable func apply(_ receiver: TemplateValue, _ arguments: [TemplateValue]) -> TemplateValue {
+         if case .array(let items) = receiver {
+            return .array(items.map { apply($0, arguments) })
+         }
+         switch receiver.number {
+         case .int(let v)?: return .int(v)
+         case .double(let v)?: return body(v, arguments)
+         case nil: return receiver
+         }
+      }
+      return apply
+   }
+
+   /// A rounded number, as a whole number when it fits.
+   private static func whole(_ value: Double) -> TemplateValue {
+      if let int = Int(exactly: value) { return .int(int) }
+      return .double(value)
    }
 
    private static func joinedPath(_ parts: [String]) -> String {

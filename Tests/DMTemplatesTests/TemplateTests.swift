@@ -397,6 +397,67 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 }
 
+@Suite struct ListAndNumberFunctionTests {
+   let people: TemplateValue = ["people": [
+      ["name": "Ollie", "age": 9, "admin": false],
+      ["name": "Ann", "age": 41, "admin": true],
+      ["name": "Dustin", "age": 41],
+      ["name": "Kai"],
+   ]]
+
+   @Test func truncate() throws {
+      let context: TemplateValue = ["bio": "Writes Mac apps and template engines"]
+      #expect(try render("{% bio | truncate(12) %}", context) == "Writes Mac…")
+      #expect(try render("{% bio | truncate(13, '...') %}", context) == "Writes Mac...")
+      #expect(try render("{% bio | truncate(100) %}", context) == "Writes Mac apps and template engines")
+   }
+
+   @Test func pluralize() throws {
+      #expect(try render("{% n | pluralize('comment') %}", ["n": 1]) == "1 comment")
+      #expect(try render("{% n | pluralize('comment') %}", ["n": 3]) == "3 comments")
+      #expect(try render("{% n | pluralize('person', 'people') %}", ["n": 0]) == "0 people")
+      #expect(try render("{% list.@count | pluralize('item') %}", ["list": [1, 2]]) == "2 items")
+   }
+
+   @Test func sortWhereAndUnique() throws {
+      #expect(try render("{% (people | sort('age')).name | join(',') %}", people) == "Ollie,Ann,Dustin,Kai")
+      #expect(try render("{% people.name | sort | join(',') %}", people) == "Ann,Dustin,Kai,Ollie")
+      #expect(try render("{% (people | where('age', 41)).name | join(',') %}", people) == "Ann,Dustin")
+      #expect(try render("{% (people | where('admin')).name | join(',') %}", people) == "Ann")
+      #expect(try render("{% people.age | unique | join(',') %}", people) == "9,41")
+      #expect(try render("{% [3, 1, 2] | sort | reverse | join %}") == "321")
+   }
+
+   @Test func firstLastAndCount() throws {
+      #expect(try render("{% people.name | first %} {% people.name | last %} {% people | count %}", people) == "Ollie Kai 4")
+      #expect(try render("{% people | where('admin') | count %}", people) == "1")
+      #expect(try render("{% 'hello' | first | uppercase %}{% 'hello' | count %}") == "H5")
+      #expect(try render("{% people.first %}", ["people": ["first": "key"]]) == "key")
+   }
+
+   @Test func rounding() throws {
+      let context: TemplateValue = ["x": 3.14159, "y": -2.5, "n": 7, "s": "2.6"]
+      #expect(try render("{% x | round %} {% x | round(2) %} {% x | floor %} {% x | ceil %}", context) == "3 3.14 3 4")
+      #expect(try render("{% y | abs %} {% n | abs %} {% n | round %} {% s | round %}", context) == "2.5 7 7 3")
+      #expect(try render("{% [1.4, 1.6] | round | join(',') %}") == "1,2")
+   }
+}
+
+@Suite struct TextJoiningTests {
+   @Test func plusJoinsText() throws {
+      let context: TemplateValue = ["name": "Dustin", "count": 3]
+      #expect(try render("{% 'Hi ' + name + '!' %}", context) == "Hi Dustin!")
+      #expect(try render("{% 'You have ' + count + ' tasks' %}", context) == "You have 3 tasks")
+      #expect(try render("{% 'Hi ' + missing %}", context) == "Hi ")
+      #expect(try render("{% (name + ' Mierau') | uppercase %}", context) == "DUSTIN MIERAU")
+      #expect(try render("{% if(name + 'x' == 'Dustinx') %}yes{% endif %}", context) == "yes")
+   }
+
+   @Test func numbersStillAdd() throws {
+      #expect(try render("{% count + 1 %} {% '41' + 1 %} {% missing + 1 %}", ["count": 3]) == "4 42 ")
+   }
+}
+
 @Suite struct LogTests {
    final class Collector: @unchecked Sendable {
       private let lock = NSLock()

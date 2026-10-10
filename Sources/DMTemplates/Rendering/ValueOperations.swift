@@ -110,10 +110,29 @@ extension TemplateValue {
    }
 }
 
+extension TemplateValue {
+   /// Text that doesn't read as a number.
+   fileprivate var isText: Bool {
+      if case .string = self, number == nil { return true }
+      return false
+   }
+
+   fileprivate var joinableString: String {
+      self == .null ? "" : renderedString
+   }
+}
+
 extension ArithmeticOperator {
    /// Whole numbers stay whole unless they overflow; `/` always gives a real
    /// number, like NSExpression. Dividing by zero gives nil.
+   ///
+   /// `+` joins text when either side is text that isn't a number, as in
+   /// `"Hi " + name`; nil joins as nothing. Two numeric strings still add as
+   /// numbers.
    func apply(_ lhs: TemplateValue, _ rhs: TemplateValue) -> TemplateValue {
+      if self == .add, lhs.isText || rhs.isText {
+         return .string(lhs.joinableString + rhs.joinableString)
+      }
       guard let a = lhs.number, let b = rhs.number else {
          return .null
       }
@@ -207,7 +226,7 @@ extension ComparisonOperator {
 /// Orders two values: -1, 0 or 1. Two strings compare as strings and two dates
 /// as dates; otherwise both must read as numbers. Nil when the values can't be
 /// ordered.
-private func compareValues(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options: StringOptions) -> Int? {
+func compareValues(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options: StringOptions) -> Int? {
    switch (lhs, rhs) {
    case (.string(let a), .string(let b)):
       let x = fold(a, options)
@@ -232,7 +251,7 @@ private func compareValues(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options
    }
 }
 
-private func valuesEqual(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options: StringOptions) -> Bool {
+func valuesEqual(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options: StringOptions) -> Bool {
    switch (lhs, rhs) {
    case (.null, .null):
       return true
