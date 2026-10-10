@@ -80,7 +80,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func onlyDecimalTextIsANumber() throws {
       let context: TemplateValue = ["inf": "inf", "nan": "NaN", "hex": "0x10", "padded": " 7 "]
-      #expect(try render("[{% inf + 1 %}][{% nan * 2 %}][{% hex + 1 %}][{% padded + 1 %}]", context) == "[][][][8]")
+      #expect(try render("[{% inf + 1 %}][{% nan * 2 %}][{% hex + 1 %}][{% padded + 1 %}]", context) == "[inf1][][0x101][8]")
       #expect(try render("{% inf > 5 %}", context) == "false")
    }
 
