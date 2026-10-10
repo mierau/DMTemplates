@@ -11,8 +11,14 @@ public enum TemplateValue: Sendable, Hashable {
    case bool(Bool)
    case int(Int)
    case double(Double)
+   /// An exact decimal number, such as a price. Arithmetic with whole numbers
+   /// and other decimals stays exact.
+   // Boxed: unboxed, its 20 bytes would make every value larger, and
+   // rendering measurably slower.
+   indirect case decimal(Decimal)
    case string(String)
-   /// Renders in ISO 8601, or as asked with `as`: `{% post.date as date %}`.
+   /// Renders in ISO 8601, or as a formatting function asks, as in
+   /// `{% post.date | date %}`.
    case date(Date)
    case array([TemplateValue])
    case dictionary([String: TemplateValue])
@@ -59,6 +65,9 @@ extension TemplateValue {
       }
       else if type == Double.self {
          self = .double(value as! Double)
+      }
+      else if type == Decimal.self {
+         self = .decimal(value as! Decimal)
       }
       else if let v = value as? Date {
          self = .date(v)
@@ -138,6 +147,7 @@ extension TemplateValue: Codable {
       case .bool(let v): try container.encode(v)
       case .int(let v): try container.encode(v)
       case .double(let v): try container.encode(v)
+      case .decimal(let v): try container.encode(v)
       case .string(let v): try container.encode(v)
       case .date(let v): try container.encode(v)
       case .array(let v): try container.encode(v)
@@ -178,6 +188,8 @@ extension TemplateValue {
             return String(Int(v))
          }
          return String(v)
+      case .decimal(let v):
+         return v.description
       case .string(let v):
          return v
       case .date(let v):
@@ -196,6 +208,7 @@ extension TemplateValue {
       case .bool(let v): return v
       case .int(let v): return v != 0
       case .double(let v): return v != 0
+      case .decimal(let v): return !v.isZero
       case .string(let v): return !v.isEmpty
       case .date: return true
       case .array(let v): return !v.isEmpty
@@ -206,11 +219,22 @@ extension TemplateValue {
    enum Number {
       case int(Int)
       case double(Double)
+      indirect case decimal(Decimal)
 
       var double: Double {
          switch self {
          case .int(let v): return Double(v)
          case .double(let v): return v
+         case .decimal(let v): return NSDecimalNumber(decimal: v).doubleValue
+         }
+      }
+
+      /// The number as an exact decimal, unless it's a `Double`.
+      var exactDecimal: Decimal? {
+         switch self {
+         case .int(let v): return Decimal(v)
+         case .double: return nil
+         case .decimal(let v): return v
          }
       }
    }
@@ -221,6 +245,7 @@ extension TemplateValue {
       switch self {
       case .int(let v): return .int(v)
       case .double(let v): return .double(v)
+      case .decimal(let v): return .decimal(v)
       case .bool(let v): return .int(v ? 1 : 0)
       case .string(let v):
          return Self.number(reading: v)

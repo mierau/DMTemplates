@@ -28,8 +28,30 @@ public struct Template: Sendable {
    /// Renders the template against `context`, with the optional `features`
    /// switched on.
    public func render(_ context: TemplateValue, features: RenderFeatures = .default) -> String {
-      program.run(context, features: features)
+      var output: [UInt8] = []
+      program.run(context, features: features, into: &output)
+      return String(decoding: output, as: UTF8.self)
    }
+
+   /// Renders the template against `context`, writing the result to `output`
+   /// in pieces as it goes rather than building one string, which keeps
+   /// memory down for long output. Rendering into a `String` appends to it.
+   ///
+   ///     var page = "<!doctype html>\n"
+   ///     template.render(context, into: &page)
+   public func render(_ context: TemplateValue, features: RenderFeatures = .default, into output: inout some TextOutputStream) {
+      var buffer: [UInt8] = []
+      program.run(context, features: features, into: &buffer, flushingAt: Self.chunkSize) { bytes in
+         output.write(String(decoding: bytes, as: UTF8.self))
+         bytes.removeAll(keepingCapacity: true)
+      }
+      if !buffer.isEmpty {
+         output.write(String(decoding: buffer, as: UTF8.self))
+      }
+   }
+
+   /// About how much `render(_:features:into:)` writes at a time.
+   static let chunkSize = 16 * 1024
 
    /// Renders the template against Foundation or Swift values, such as a
    /// dictionary read from a property list or JSON.
@@ -37,9 +59,21 @@ public struct Template: Sendable {
       render(TemplateValue(any: object), features: features)
    }
 
+   /// Renders the template against Foundation or Swift values, writing the
+   /// result to `output` in pieces as it goes.
+   public func render(object: Any?, features: RenderFeatures = .default, into output: inout some TextOutputStream) {
+      render(TemplateValue(any: object), features: features, into: &output)
+   }
+
    /// Renders the template against an Encodable value.
    public func render<T: Encodable>(encoding value: T, features: RenderFeatures = .default) throws -> String {
       render(try TemplateValue(encoding: value), features: features)
+   }
+
+   /// Renders the template against an Encodable value, writing the result to
+   /// `output` in pieces as it goes.
+   public func render<T: Encodable>(encoding value: T, features: RenderFeatures = .default, into output: inout some TextOutputStream) throws {
+      render(try TemplateValue(encoding: value), features: features, into: &output)
    }
 }
 
@@ -85,12 +119,53 @@ public struct TemplateOptions: Sendable {
    /// Default: the locale's currency, or "USD" when it has none.
    public var currencyCode: String?
 
+   /// How value tags escape what they write. Default: `.none`, which writes
+   /// values as they are. Set it to `.html` for HTML or XML templates:
+   ///
+   ///     var options = TemplateOptions()
+   ///     options.escaping = .html
+   ///     let page = try Template("<h1>{% title %}</h1>", options: options)
+   ///     page.render(["title": "Tom & Jerry"])  // "<h1>Tom &amp; Jerry</h1>"
+   ///
+   /// A value tag whose last step is `raw` or `escape`, as in
+   /// `{% post.body | raw %}`, is written as it is. Template text and `log`
+   /// tags are never escaped.
+   public var escaping: Escaping = .none
+
    /// Receives output from `log(...)` tags. Default: standard error.
    public var log: @Sendable (String) -> Void = { message in
       FileHandle.standardError.write(Data((message + "\n").utf8))
    }
 
    public init() {}
+}
+
+/// How value tags escape the text they write.
+public struct Escaping: Sendable {
+   enum Kind {
+      case none
+      case html
+      case custom(@Sendable (String) -> String)
+   }
+
+   let kind: Kind
+
+   /// Values are written as they are.
+   public static let none = Escaping(kind: .none)
+
+   /// Escapes `&`, `<`, `>`, `"` and `'` as HTML entities.
+   public static let html = Escaping(kind: .html)
+
+   /// Escapes with `transform`, such as one for Markdown:
+   ///
+   ///     options.escaping = Escaping { $0.replacingOccurrences(of: "*", with: "\\*") }
+   public init(_ transform: @escaping @Sendable (String) -> String) {
+      self.kind = .custom(transform)
+   }
+
+   private init(kind: Kind) {
+      self.kind = kind
+   }
 }
 
 /// A problem found while parsing a template, with the line and column (both

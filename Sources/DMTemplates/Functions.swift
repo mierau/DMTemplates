@@ -25,6 +25,9 @@ public struct Functions: Sendable {
 
    private var table: [String: Function]
 
+   /// Functions to fall back on for names `table` doesn't have.
+   private var fallback: [String: Function] = [:]
+
    /// No functions.
    public init() {
       self.table = [:]
@@ -41,6 +44,8 @@ public struct Functions: Sendable {
    /// - `path(components...)`, which joins its receiver and arguments with `/`
    /// - `default(fallback)`, the fallback when the value is nil or empty
    /// - `escape`, which escapes text for HTML and XML
+   /// - `raw`, which leaves a value as it is, so a value tag ending in
+   ///   `| raw` isn't escaped; see `TemplateOptions.escaping`
    /// - `urlEncode`, which percent-encodes everything but letters, digits
    ///   and `-._~`
    /// - `bytes`, which shows a byte count for people, as in `1.9 MB`
@@ -108,6 +113,8 @@ public struct Functions: Sendable {
          return parts.isEmpty ? .null : .string(joinedPath(parts))
       }
       functions["escape"] = textFunction { text, _ in .string(escapingXMLEntities(text)) }
+      // Marks a value tag's output as already safe; see `TemplateOptions.escaping`.
+      functions["raw"] = { receiver, _ in receiver }
       functions["urlEncode"] = textFunction { text, _ in .string(addingPercentEncoding(text)) }
       functions["bytes"] = textFunction { text, _ in .string(readableByteCount(Int64(leadingIntegerOf: text))) }
       functions["truncate"] = textFunction { text, arguments in
@@ -124,6 +131,7 @@ public struct Functions: Sendable {
          switch count {
          case .int(let v): isOne = v == 1 || v == -1
          case .double(let v): isOne = v == 1 || v == -1
+         case .decimal(let v): isOne = v == 1 || v == -1
          }
          return .string("\(receiver.renderedString) \(isOne ? singular : plural)")
       }
@@ -171,18 +179,14 @@ public struct Functions: Sendable {
       }
       functions["count"] = { receiver, _ in receiver.elementCount }
 
-      functions["round"] = roundingFunction { number, arguments in
-         let places = integer(arguments.first) ?? 0
-         guard places > 0 else { return whole(number.rounded()) }
-         let scale = pow(10, Double(min(places, 15)))
-         return .double((number * scale).rounded() / scale)
-      }
-      functions["floor"] = roundingFunction { number, _ in whole(number.rounded(.down)) }
-      functions["ceil"] = roundingFunction { number, _ in whole(number.rounded(.up)) }
+      functions["round"] = roundingFunction(.toNearestOrAwayFromZero, takesPlaces: true)
+      functions["floor"] = roundingFunction(.down)
+      functions["ceil"] = roundingFunction(.up)
       functions["abs"] = { receiver, _ in
          switch receiver.number {
          case .int(let v)?: return v == .min ? .double(-Double(v)) : .int(Swift.abs(v))
          case .double(let v)?: return .double(Swift.abs(v))
+         case .decimal(let v)?: return .decimal(Swift.abs(v))
          case nil: return receiver
          }
       }
@@ -200,7 +204,7 @@ public struct Functions: Sendable {
    }()
 
    public subscript(name: String) -> Function? {
-      get { table[name] }
+      get { table[name] ?? fallback[name] }
       set { table[name] = newValue }
    }
 
@@ -213,10 +217,11 @@ public struct Functions: Sendable {
       textFunction { text, _ in .string(transform(text)) }
    }
 
-   /// Functions from `other` added to these, replacing any with the same name.
-   func adding(_ other: Functions) -> Functions {
+   /// These functions, falling back on `other` for names they don't have.
+   /// Unlike merging the two, this copies nothing.
+   func falling(backOn other: Functions) -> Functions {
       var result = self
-      result.table.merge(other.table) { _, new in new }
+      result.fallback = other.table
       return result
    }
 
@@ -231,17 +236,29 @@ public struct Functions: Sendable {
       return apply
    }
 
-   /// A function on numbers. Lists apply it to each element; whole numbers
-   /// and values that aren't numbers stay as they are.
-   static func roundingFunction(_ body: @escaping @Sendable (Double, [TemplateValue]) -> TemplateValue) -> Function {
+   /// A function that rounds numbers by `rule`, to the number of decimal
+   /// places in its first argument when `takesPlaces`. Lists apply it to each
+   /// element; whole numbers and values that aren't numbers stay as they are.
+   static func roundingFunction(_ rule: FloatingPointRoundingRule, takesPlaces: Bool = false) -> Function {
       @Sendable func apply(_ receiver: TemplateValue, _ arguments: [TemplateValue]) -> TemplateValue {
          if case .array(let items) = receiver {
             return .array(items.map { apply($0, arguments) })
          }
+         let places = takesPlaces ? max(0, integer(arguments.first) ?? 0) : 0
          switch receiver.number {
-         case .int(let v)?: return .int(v)
-         case .double(let v)?: return body(v, arguments)
-         case nil: return receiver
+         case .int(let v)?:
+            return .int(v)
+         case .double(let v)?:
+            guard places > 0 else { return whole(v.rounded(rule)) }
+            let scale = pow(10, Double(min(places, 15)))
+            return .double((v * scale).rounded(rule) / scale)
+         case .decimal(var v)?:
+            var result = Decimal()
+            let mode: NSDecimalNumber.RoundingMode = rule == .down ? .down : rule == .up ? .up : .plain
+            NSDecimalRound(&result, &v, places, mode)
+            return .decimal(result)
+         case nil:
+            return receiver
          }
       }
       return apply
@@ -262,6 +279,7 @@ public struct Functions: Sendable {
    static func string(_ value: TemplateValue) -> String? {
       switch value {
       case .null, .array, .dictionary: return nil
+      case .string(let text): return text
       default: return value.renderedString
       }
    }
@@ -270,6 +288,7 @@ public struct Functions: Sendable {
       switch value?.number {
       case .int(let v)?: return v
       case .double(let v)?: return Int(exactly: v.rounded(.towardZero))
+      case .decimal(let v)?: return Int(exactly: NSDecimalNumber(decimal: v).doubleValue.rounded(.towardZero))
       case nil: return nil
       }
    }

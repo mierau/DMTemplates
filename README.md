@@ -32,6 +32,20 @@ Mistakes in a template, such as an unclosed `if` or a typo in an expression, thr
 
 To load a template from a file, use `Template(contentsOf:)`. Tags are written between `{%` and `%}` by default; `TemplateOptions.beginDelimiter` and `endDelimiter` change them.
 
+For long output, such as a large page or a file, `render(_:into:)` writes to any `TextOutputStream` in pieces as it goes, rather than building the whole result as one string first:
+
+    var page = ""
+    template.render(context, into: &page)
+
+## Escaping
+Templates don't assume they're HTML, so values are written as they are unless you ask for escaping. For HTML or XML templates, turn it on with `TemplateOptions.escaping`:
+
+    var options = TemplateOptions()
+    options.escaping = .html
+    let page = try Template("<h1>{% post.title %}</h1>{% post.body | raw %}", options: options)
+
+Every value tag then escapes `&`, `<`, `>`, `"` and `'`. A value tag ending in `| raw` is written as it is, for HTML you trust, and one ending in `| escape` isn't escaped twice. Template text and `log` tags are never escaped. `Escaping { ... }` takes your own transform for other formats.
+
 ## Expressions
 Value tags, conditions and loops all take expressions, written in a syntax modeled on NSPredicate's:
 
@@ -42,6 +56,7 @@ Value tags, conditions and loops all take expressions, written in a syntax model
 * Pattern matching: `LIKE` matches the whole string against a pattern where `*` stands for any run of characters and `?` for exactly one, so `file LIKE[c] "*.png"`. `MATCHES` takes a regular expression that has to match the whole string, as in `code MATCHES "[A-Z]{3}-[0-9]+"`. A pattern written in the template is checked when the template is created.
 * Logic: `AND`, `OR` and `NOT`, or `&&`, `||` and `!`.
 * Literals: strings, numbers, `true`/`false`/`YES`/`NO`, `nil`, and arrays written `{1, 2}` or `[1, 2]`.
+* Exact decimals: `Decimal` values, such as prices, stay exact through arithmetic with whole numbers and other decimals, `@sum`, `@avg`, rounding and formatting.
 * Function calls: `name.uppercase()`, `name | prefix(3)`, `path("~", name)`. See [Functions](#functions).
 
 `ANY`, `ALL`, `SOME`, `NONE`, `SUBQUERY`, `CAST` and `TERNARY` are not supported and are reported as errors.
@@ -99,7 +114,7 @@ The standard functions are:
 
 * Text: `uppercase`, `lowercase`, `capitalize`, `trim`, `prefix(n)`, `suffix(n)`, `dropFirst(n)`, `dropLast(n)` (where `n` defaults to 1), `replace(old, new)` and `truncate(n)`, which shortens text to `n` characters ending in "…" (or `truncate(n, "...")` for another ending).
 * Counts: `pluralize(singular, plural)`, as in `post.comments.@count | pluralize("comment")` for `3 comments`; `plural` defaults to the singular plus "s".
-* Output: `escape` escapes text for HTML and XML, `urlEncode` percent-encodes everything except letters, digits and `-._~`, and `bytes` shows a byte count for people, as in `1.9 MB`.
+* Output: `raw` leaves a value as it is (see [Escaping](#escaping)), `escape` escapes text for HTML and XML, `urlEncode` percent-encodes everything except letters, digits and `-._~`, and `bytes` shows a byte count for people, as in `1.9 MB`.
 * Lists: `first`, `last`, `count`, `reverse`, `unique`, `sort` or `sort(key)`, `where(key, value)` (or `where(key)` for elements whose key is true), and `join(separator)` to join a list into text. They chain, as in `people | where("admin") | sort("name") | first`.
 * Numbers: `round` or `round(places)`, `floor`, `ceil` and `abs`.
 * `path(components...)`, as in `path("/avatars", person.id, "photo.jpg")`.

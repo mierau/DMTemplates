@@ -12,8 +12,9 @@ final class Program: @unchecked Sendable {
    enum Instruction {
       /// Writes `text[range]`.
       case text(Span)
-      /// Writes an expression's value.
-      case value(ExpressionRef)
+      /// Writes an expression's value, escaped as the options ask unless
+      /// `raw`.
+      case value(ExpressionRef, raw: Bool)
       /// Continues if the expression is truthy, otherwise jumps to `otherwise`.
       case branch(ExpressionRef, otherwise: Int32)
       case jump(Int32)
@@ -39,6 +40,7 @@ final class Program: @unchecked Sendable {
    private let custom: UnsafeMutableBufferPointer<any CompiledExpression>
    private let code: ExpressionCode
    private let localCount: Int
+   private let escaping: Escaping.Kind
    private let log: @Sendable (String) -> Void
 
    init(_ template: ParsedTemplate, options: TemplateOptions) {
@@ -49,6 +51,7 @@ final class Program: @unchecked Sendable {
       self.custom = .copying(builder.custom)
       self.code = ExpressionCode(builder.code)
       self.localCount = template.localCount
+      self.escaping = options.escaping.kind
       self.log = options.log
    }
 
@@ -66,12 +69,13 @@ final class Program: @unchecked Sendable {
       var index: Int
    }
 
-   func run(_ context: TemplateValue, features: RenderFeatures) -> String {
+   /// Renders into `output`. When `output` reaches `limit` bytes, `flush` is
+   /// called to take what's there, so long output can stream.
+   func run(_ context: TemplateValue, features: RenderFeatures, into output: inout [UInt8], flushingAt limit: Int = .max, _ flush: (inout [UInt8]) -> Void = { _ in }) {
       let interpreter = code.interpreter
       var scope = ExpressionScope(root: context, features: features, localCount: localCount)
       var loops: [Loop] = []
-      var output: [UInt8] = []
-      output.reserveCapacity(text.count * 3 / 2)
+      output.reserveCapacity(min(text.count * 3 / 2, limit))
 
       func evaluate(_ expression: ExpressionRef) -> TemplateValue {
          switch expression {
@@ -85,13 +89,12 @@ final class Program: @unchecked Sendable {
          switch instructions[pc] {
          case .text(let span):
             output.append(contentsOf: UnsafeBufferPointer(rebasing: text[span.range]))
+            if output.count >= limit { flush(&output) }
             pc += 1
 
-         case .value(let expression):
-            let value = evaluate(expression)
-            if value != .null {
-               output.append(contentsOf: value.renderedString.utf8)
-            }
+         case .value(let expression, let raw):
+            write(evaluate(expression), raw: raw, to: &output)
+            if output.count >= limit { flush(&output) }
             pc += 1
 
          case .branch(let condition, let otherwise):
@@ -132,8 +135,36 @@ final class Program: @unchecked Sendable {
             pc += 1
          }
       }
+   }
 
-      return String(decoding: output, as: UTF8.self)
+   /// Writes a value tag's value, escaped as the options ask.
+   private func write(_ value: TemplateValue, raw: Bool, to output: inout [UInt8]) {
+      // Strings and whole numbers, the most common values, skip
+      // `renderedString`.
+      let text: String
+      switch value {
+      case .null:
+         return
+      case .int(let v):
+         output.append(contentsOf: String(v).utf8)
+         return
+      case .bool, .double, .decimal:
+         // Nothing in a number needs escaping.
+         output.append(contentsOf: value.renderedString.utf8)
+         return
+      case .string(let v):
+         text = v
+      default:
+         text = value.renderedString
+      }
+      switch raw ? .none : escaping {
+      case .none:
+         output.append(contentsOf: text.utf8)
+      case .html:
+         appendEscapingHTML(text, to: &output)
+      case .custom(let transform):
+         output.append(contentsOf: transform(text).utf8)
+      }
    }
 
    // MARK: Building
@@ -166,7 +197,7 @@ final class Program: @unchecked Sendable {
             text.append(contentsOf: string.utf8)
 
          case .value(let expression):
-            instructions.append(.value(add(expression)))
+            instructions.append(.value(add(expression), raw: Self.isRaw(expression)))
 
          case .conditional(let branches, let otherwise):
             // Each branch tests its condition and skips to the next branch when
@@ -204,6 +235,15 @@ final class Program: @unchecked Sendable {
          }
       }
 
+      /// Whether a value tag ends by calling `raw` or `escape`, so its
+      /// output isn't escaped (again).
+      private static func isRaw(_ expression: TagExpression) -> Bool {
+         if case .native(.function(_, let name, _, _)) = expression {
+            return name == "raw" || name == "escape"
+         }
+         return false
+      }
+
       private mutating func add(_ expression: TagExpression) -> ExpressionRef {
          switch expression {
          case .native(let syntax):
@@ -212,6 +252,27 @@ final class Program: @unchecked Sendable {
             custom.append(compiled)
             return .custom(Int32(custom.count - 1))
          }
+      }
+   }
+}
+
+/// Appends `text` with `&`, `<`, `>`, `"` and `'` written as HTML entities.
+private func appendEscapingHTML(_ text: String, to output: inout [UInt8]) {
+   let needsEscaping = text.utf8.contains { byte in
+      byte == UInt8(ascii: "&") || byte == UInt8(ascii: "<") || byte == UInt8(ascii: ">") || byte == UInt8(ascii: "\"") || byte == UInt8(ascii: "'")
+   }
+   guard needsEscaping else {
+      output.append(contentsOf: text.utf8)
+      return
+   }
+   for byte in text.utf8 {
+      switch byte {
+      case UInt8(ascii: "&"): output.append(contentsOf: "&amp;".utf8)
+      case UInt8(ascii: "<"): output.append(contentsOf: "&lt;".utf8)
+      case UInt8(ascii: ">"): output.append(contentsOf: "&gt;".utf8)
+      case UInt8(ascii: "\""): output.append(contentsOf: "&quot;".utf8)
+      case UInt8(ascii: "'"): output.append(contentsOf: "&#39;".utf8)
+      default: output.append(byte)
       }
    }
 }

@@ -494,7 +494,7 @@ struct ExpressionParser {
             // name can be called, keywords included.
             var arguments = try parseArguments()
             let receiver: Expr = arguments.isEmpty ? .literal(.null) : arguments.removeFirst()
-            return .function(try lookUpFunction(name, at: token), receiver: receiver, arguments: arguments)
+            return .function(try lookUpFunction(name, at: token), name: name, receiver: receiver, arguments: arguments)
          }
          switch token.keyword {
          case "TRUE", "YES": return .literal(.bool(true))
@@ -537,7 +537,7 @@ struct ExpressionParser {
    private mutating func parseCall(_ name: String, at token: Token, receiver: Expr) throws -> Expr {
       let function = try lookUpFunction(name, at: token)
       let arguments = try isSymbol("(") ? parseArguments() : []
-      return .function(function, receiver: receiver, arguments: arguments)
+      return .function(function, name: name, receiver: receiver, arguments: arguments)
    }
 
    /// `(a, b, ...)`, including the parentheses.

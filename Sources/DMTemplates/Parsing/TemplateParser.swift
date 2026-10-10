@@ -94,9 +94,9 @@ struct TemplateParser {
       self.endDelimiter = Array(options.endDelimiter.utf8)
 
       if var compiler = options.expressionCompiler as? NativeExpressionCompiler {
-         // Formatting functions depend on the options, so each template gets
-         // its own. The app's functions win over them.
-         compiler.functions = Functions.formatting(options).adding(compiler.functions)
+         // Formatting functions depend on the options' locale, time zone and
+         // currency. The app's functions win over them.
+         compiler.functions = compiler.functions.falling(backOn: .formatting(for: options))
          let native = compiler
          // Keep the syntax tree; the program compiles it alongside the
          // template's other expressions.
