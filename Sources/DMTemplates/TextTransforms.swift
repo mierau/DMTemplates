@@ -4,7 +4,7 @@
 
 import Foundation
 
-// Text transforms behind the `escaped`, `urlEncoded` and `bytes` functions.
+// Text transforms behind the `escape`, `urlEncode` and `bytes` functions.
 
 /// Escapes the same characters DMTemplateEngine's `e` modifier did.
 func escapingXMLEntities(_ text: String) -> String {
