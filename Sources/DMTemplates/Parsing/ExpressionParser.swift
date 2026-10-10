@@ -38,7 +38,7 @@ private struct Token {
 /// Splits expression source into tokens.
 private struct Lexer {
    private static let pairs: Set<String> = ["==", "!=", "<>", "<=", ">=", "=<", "=>", "&&", "||"]
-   private static let singles: Set<UInt8> = Set("=<>!+-*/%()[]{},.".utf8)
+   private static let singles: Set<UInt8> = Set("=<>!+-*/%()[]{},.|".utf8)
 
    private let bytes: [UInt8]
    private var position = 0
@@ -187,10 +187,15 @@ private struct Lexer {
 ///     additive       := multiplicative (("+" | "-") multiplicative)*
 ///     multiplicative := unary (("*" | "/" | "%") unary)*
 ///     unary          := ("-" | "+") unary | postfix
-///     postfix        := primary ("." name | "." @operator | "[" or "]")*
-///     primary        := number | string | keyword | name | @operator
-///                     | FUNCTION "(" or "," string ("," or)* ")"
+///     postfix        := primary ("." name | "." name call | "." @operator | "[" or "]" | "|" name call?)*
+///     primary        := number | string | keyword | name | name call | @operator
 ///                     | "(" or ")" | "{" list "}" | "[" list "]"
+///     call           := "(" (or ("," or)*)? ")"
+///
+/// Calls name a registered function. `value.name(a, b)`, `value | name(a, b)`
+/// and `name(value, a, b)` all mean the same thing: call `name` with `value`
+/// as the receiver. A pipe binds as tightly as `.`, so `name | lowercased ==
+/// "x"` compares the lowercased name.
 struct ExpressionParser {
    private let tokens: [Token]
    private let locals: [String]
@@ -210,6 +215,9 @@ struct ExpressionParser {
       let expr = try parseOr()
       if case .end = current.kind {
          return expr
+      }
+      if current.keyword == "AS" {
+         throw error("Format with a pipe, as in 'value | date', not 'as'")
       }
       throw error("Unexpected \(describe(current))")
    }
@@ -382,18 +390,40 @@ struct ExpressionParser {
          steps = pathSteps
       }
 
+      // Ends the path so far, making it the receiver of a call.
+      func receiver() -> Expr {
+         defer { steps = [] }
+         return steps.isEmpty ? base : .path(base, steps)
+      }
+
       while true {
          if isSymbol(".") {
             advance()
             switch current.kind {
             case .identifier(let name):
-               steps.append(.key(name))
+               let token = current
+               advance()
+               if isSymbol("(") {
+                  base = try parseCall(name, at: token, receiver: receiver())
+               }
+               else {
+                  steps.append(.key(name))
+               }
             case .aggregate(let name):
                steps.append(.aggregate(try aggregate(named: name)))
+               advance()
             default:
                throw error("Expected a key after '.' but found \(describe(current))")
             }
+         }
+         else if isSymbol("|") {
             advance()
+            guard case .identifier(let name) = current.kind else {
+               throw error("Expected a function name after '|' but found \(describe(current))")
+            }
+            let token = current
+            advance()
+            base = try parseCall(name, at: token, receiver: receiver())
          }
          else if isSymbol("[") {
             advance()
@@ -436,6 +466,13 @@ struct ExpressionParser {
 
       case .identifier(let name):
          advance()
+         if isSymbol("(") {
+            // `name(value, args...)` is `value.name(args...)`. Any registered
+            // name can be called, keywords included.
+            var arguments = try parseArguments()
+            let receiver: Expr = arguments.isEmpty ? .literal(.null) : arguments.removeFirst()
+            return .function(try lookUpFunction(name, at: token), receiver: receiver, arguments: arguments)
+         }
          switch token.keyword {
          case "TRUE", "YES": return .literal(.bool(true))
          case "FALSE", "NO": return .literal(.bool(false))
@@ -443,8 +480,6 @@ struct ExpressionParser {
          case "SELF": return .root
          case "AND", "OR", "BETWEEN", "IN", "CONTAINS", "BEGINSWITH", "ENDSWITH", "LIKE", "MATCHES":
             throw error("Unexpected \(name)", at: token)
-         case "FUNCTION":
-            return try parseFunction()
          case "ANY", "ALL", "SOME", "NONE", "SUBQUERY", "CAST", "TERNARY":
             throw error("\(token.keyword) is not supported", at: token)
          default:
@@ -474,25 +509,25 @@ struct ExpressionParser {
       }
    }
 
-   /// `FUNCTION(receiver, "name", arguments...)`, after the keyword.
-   private mutating func parseFunction() throws -> Expr {
-      try expect("(")
-      let receiver = try parseOr()
-      try expect(",")
-      guard case .string(let name) = current.kind else {
-         throw error("FUNCTION needs a quoted function name after the receiver")
-      }
-      guard let function = functions[name] else {
-         throw error("Unknown function \"\(name)\"")
-      }
-      advance()
-      var arguments: [Expr] = []
-      while isSymbol(",") {
-         advance()
-         arguments.append(try parseOr())
-      }
-      try expect(")")
+   /// A call to `name` on `receiver`, after the name: `(arguments...)`, or
+   /// nothing at all after a pipe.
+   private mutating func parseCall(_ name: String, at token: Token, receiver: Expr) throws -> Expr {
+      let function = try lookUpFunction(name, at: token)
+      let arguments = try isSymbol("(") ? parseArguments() : []
       return .function(function, receiver: receiver, arguments: arguments)
+   }
+
+   /// `(a, b, ...)`, including the parentheses.
+   private mutating func parseArguments() throws -> [Expr] {
+      try expect("(")
+      return try parseList(closing: ")")
+   }
+
+   private func lookUpFunction(_ name: String, at token: Token) throws -> Functions.Function {
+      guard let function = functions[name] else {
+         throw error("Unknown function \(name)()", at: token)
+      }
+      return function
    }
 
    private mutating func parseList(closing: String) throws -> [Expr] {

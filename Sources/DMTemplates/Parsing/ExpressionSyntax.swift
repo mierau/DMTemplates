@@ -20,7 +20,7 @@ indirect enum Expr: Sendable {
    case or(Expr, Expr)
    case arithmetic(ArithmeticOperator, Expr, Expr)
    case comparison(ComparisonOperator, StringOptions, Expr, Expr)
-   /// `FUNCTION(receiver, "name", arguments...)`, resolved to its function.
+   /// A call such as `receiver.name(arguments...)`, resolved to its function.
    case function(Functions.Function, receiver: Expr, arguments: [Expr])
 }
 
