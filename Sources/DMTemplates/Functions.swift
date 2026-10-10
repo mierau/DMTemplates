@@ -12,7 +12,6 @@ import Foundation
 ///     {% person.name | prefix(1) | uppercased %}
 ///     {% uppercased(prefix(person.name, 1)) %}
 ///
-/// `FUNCTION(receiver, "name", args...)`, NSExpression's spelling, works too.
 /// Templates can only call functions registered here.
 ///
 ///     var options = TemplateOptions()
@@ -44,11 +43,6 @@ public struct Functions: Sendable {
    ///
    /// Text functions applied to a list apply to each element, so
    /// `files.name | lowercased` lowercases every name.
-   ///
-   /// The NSString method names templates called through NSExpression's
-   /// FUNCTION are here too: `uppercaseString`, `lowercaseString`,
-   /// `capitalizedString`, `length`, `substringToIndex:`, `substringFromIndex:`
-   /// and `pathWithComponents:`.
    public static let standard: Functions = {
       var functions = Functions()
 
@@ -104,24 +98,6 @@ public struct Functions: Sendable {
          case .string(let text) where text.isEmpty: return arguments.first ?? .null
          default: return receiver
          }
-      }
-
-      // NSExpression-era names.
-      functions["uppercaseString"] = functions["uppercased"]
-      functions["lowercaseString"] = functions["lowercased"]
-      functions["capitalizedString"] = functions["capitalized"]
-      functions["length"] = { receiver, _ in
-         string(receiver).map { .int($0.utf16.count) } ?? .null
-      }
-      functions["substringToIndex:"] = functions["prefix"]
-      functions["substringFromIndex:"] = { receiver, arguments in
-         guard let text = string(receiver), let count = integer(arguments.first), count >= 0 else { return .null }
-         return .string(String(text.dropFirst(count)))
-      }
-      functions["pathWithComponents:"] = { _, arguments in
-         // Builds a path from its arguments; the receiver is ignored.
-         guard case .array(let components)? = arguments.first else { return .null }
-         return .string(joinedPath(components.map(\.renderedString)))
       }
       return functions
    }()
