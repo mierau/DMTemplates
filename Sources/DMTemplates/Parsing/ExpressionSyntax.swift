@@ -21,7 +21,7 @@ indirect enum Expr: Sendable {
    case arithmetic(ArithmeticOperator, Expr, Expr)
    case comparison(ComparisonOperator, StringOptions, Expr, Expr)
    /// A call such as `receiver.name(arguments...)`, resolved to its function.
-   case function(Functions.Function, receiver: Expr, arguments: [Expr])
+   case function(Functions.Function, name: String, receiver: Expr, arguments: [Expr])
 }
 
 /// One step along a key path, applied left to right.

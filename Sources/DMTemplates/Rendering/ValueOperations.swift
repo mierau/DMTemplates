@@ -69,8 +69,18 @@ extension Aggregate {
       case .sum, .avg:
          let numbers = values.compactMap(\.number)
          var total: Double { numbers.reduce(0.0) { $0 + $1.double } }
+         // Decimals keep sums and averages exact, unless a Double is mixed in.
+         let decimals = numbers.contains { if case .decimal = $0 { true } else { false } }
+            ? numbers.compactMap(\.exactDecimal) : []
+         let exact = !decimals.isEmpty && decimals.count == numbers.count
          if self == .avg {
+            if exact {
+               return .decimal(decimals.reduce(0, +) / Decimal(decimals.count))
+            }
             return .double(numbers.isEmpty ? 0 : total / Double(numbers.count))
+         }
+         if exact {
+            return .decimal(decimals.reduce(0, +))
          }
          // Keep whole-number sums exact unless they overflow.
          var intTotal = 0
@@ -105,6 +115,7 @@ extension TemplateValue {
       switch number {
       case .int(let v)?: return v == .min ? .double(-Double(v)) : .int(-v)
       case .double(let v)?: return .double(-v)
+      case .decimal(let v)?: return .decimal(-v)
       case nil: return .null
       }
    }
@@ -124,7 +135,8 @@ extension TemplateValue {
 
 extension ArithmeticOperator {
    /// Whole numbers stay whole unless they overflow; `/` always gives a real
-   /// number, like NSExpression. Dividing by zero gives nil.
+   /// number, like NSExpression. A decimal with whole numbers or other
+   /// decimals gives an exact decimal. Dividing by zero gives nil.
    ///
    /// `+` joins text when either side is text that isn't a number, as in
    /// `"Hi " + name`; nil joins as nothing. Two numeric strings still add as
@@ -140,6 +152,12 @@ extension ArithmeticOperator {
       if case .int(let x) = a, case .int(let y) = b, let result = wholeResult(x, y) {
          return .int(result)
       }
+      if case .decimal = a, let result = decimalResult(a, b) {
+         return result
+      }
+      if case .decimal = b, let result = decimalResult(a, b) {
+         return result
+      }
 
       let x = a.double
       let y = b.double
@@ -149,6 +167,23 @@ extension ArithmeticOperator {
       case .multiply: return .double(x * y)
       case .divide: return y == 0 ? .null : .double(x / y)
       case .modulo: return y == 0 ? .null : .double(x.truncatingRemainder(dividingBy: y))
+      }
+   }
+
+   /// The exact result when both numbers are whole or decimal, except `%`,
+   /// which decimals don't have. Kept out of line so the common cases stay
+   /// small.
+   @inline(never)
+   private func decimalResult(_ a: TemplateValue.Number, _ b: TemplateValue.Number) -> TemplateValue? {
+      guard let x = a.exactDecimal, let y = b.exactDecimal else {
+         return nil
+      }
+      switch self {
+      case .add: return .decimal(x + y)
+      case .subtract: return .decimal(x - y)
+      case .multiply: return .decimal(x * y)
+      case .divide: return y.isZero ? .null : .decimal(x / y)
+      case .modulo: return nil
       }
    }
 
@@ -241,6 +276,10 @@ func compareValues(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options: String
    switch (lhs.number, rhs.number) {
    case (.int(let a)?, .int(let b)?):
       return a == b ? 0 : (a < b ? -1 : 1)
+   case (let a?, let b?) where a.exactDecimal != nil && b.exactDecimal != nil:
+      let x = a.exactDecimal!
+      let y = b.exactDecimal!
+      return x == y ? 0 : (x < y ? -1 : 1)
    case (let a?, let b?):
       let x = a.double
       let y = b.double

@@ -35,7 +35,7 @@ enum TemplateValueEncoder {
       case let v as Date: return .date(v)
       case let v as URL: return .string(v.absoluteString)
       case let v as Data: return .string(v.base64EncodedString())
-      case let v as Decimal: return .double(NSDecimalNumber(decimal: v).doubleValue)
+      case let v as Decimal: return .decimal(v)
       // Other numbers, such as Int32 or Float, encode themselves through
       // SingleValueContainer.
       default: return nil

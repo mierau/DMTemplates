@@ -5,18 +5,51 @@
 import Foundation
 
 /// Template functions that show dates and numbers for people, in the
-/// template's locale, time zone and currency. Made once, when the template is
-/// parsed, and shared by every render.
+/// template's locale, time zone and currency. Foundation's formatters are slow
+/// to create and most templates use few or none, so each is made the first time
+/// a render uses it, then shared by every template with the same settings.
 extension Functions {
-   static func formatting(_ options: TemplateOptions) -> Functions {
+   /// The formatting functions for `options`' locale, time zone and currency.
+   static func formatting(for options: TemplateOptions) -> Functions {
+      let key = FormattingSettings(locale: options.locale, timeZone: options.timeZone, currencyCode: options.currencyCode)
+      return formattingCache.withLock { cache in
+         if let functions = cache[key] {
+            return functions
+         }
+         // Many distinct settings, such as a time zone per user, start over
+         // rather than grow without end.
+         if cache.count >= 64 {
+            cache.removeAll()
+         }
+         var settings = TemplateOptions()
+         settings.locale = key.locale
+         settings.timeZone = key.timeZone
+         settings.currencyCode = key.currencyCode
+         let functions = formatting(settings)
+         cache[key] = functions
+         return functions
+      }
+   }
+
+   private static let formattingCache = Locked<[FormattingSettings: Functions]>([:])
+
+   private static func formatting(_ options: TemplateOptions) -> Functions {
       var functions = Functions()
       let styles: [(String, Format)] = [
          ("date", .date), ("time", .time), ("dateTime", .dateTime), ("iso8601", .iso8601), ("relative", .relative),
          ("number", .number), ("percent", .percent), ("currency", .currency),
       ]
       for (name, format) in styles {
-         let formatter = ValueFormatter(format, options: options)
-         functions[name] = { receiver, _ in formatter.apply(to: receiver) }
+         let formatter = Locked<ValueFormatter?>(nil)
+         functions[name] = { receiver, _ in
+            let made = formatter.withLock { cached in
+               if let cached { return cached }
+               let made = ValueFormatter(format, options: options)
+               cached = made
+               return made
+            }
+            return made.apply(to: receiver)
+         }
       }
 
       let patterns = PatternFormatters(options: options)
@@ -28,6 +61,12 @@ extension Functions {
       }
       return functions
    }
+}
+
+private struct FormattingSettings: Hashable {
+   let locale: Locale
+   let timeZone: TimeZone
+   let currencyCode: String?
 }
 
 /// Formatters for `format(pattern)`, made the first time each pattern is used.
@@ -106,12 +145,12 @@ struct ValueFormatter: Sendable {
          body = Self.dates(Date.RelativeFormatStyle(presentation: .named, unitsStyle: .wide, locale: locale), in: timeZone)
 
       case .number:
-         body = Self.numbers(FloatingPointFormatStyle<Double>(locale: locale))
+         body = Self.numbers(FloatingPointFormatStyle<Double>(locale: locale), Decimal.FormatStyle(locale: locale))
       case .percent:
-         body = Self.numbers(FloatingPointFormatStyle<Double>.Percent(locale: locale))
+         body = Self.numbers(FloatingPointFormatStyle<Double>.Percent(locale: locale), Decimal.FormatStyle.Percent(locale: locale))
       case .currency:
          let code = options.currencyCode ?? locale.currency?.identifier ?? "USD"
-         body = Self.numbers(FloatingPointFormatStyle<Double>.Currency(code: code, locale: locale))
+         body = Self.numbers(FloatingPointFormatStyle<Double>.Currency(code: code, locale: locale), Decimal.FormatStyle.Currency(code: code, locale: locale))
 
       case .datePattern(let pattern):
          let formatter = DateFormatter()
@@ -128,7 +167,8 @@ struct ValueFormatter: Sendable {
          formatter.positiveFormat = pattern
          let shared = Locked(formatter)
          body = { value in
-            value.doubleValue.flatMap { number in shared.withLock { $0.string(from: NSNumber(value: number)) } }
+            let number: NSNumber? = if case .decimal(let v) = value { NSDecimalNumber(decimal: v) } else { value.doubleValue.map { NSNumber(value: $0) } }
+            return number.flatMap { number in shared.withLock { $0.string(from: number) } }
          }
       }
    }
@@ -152,8 +192,15 @@ struct ValueFormatter: Sendable {
       { value in value.date(in: timeZone).map { style.format($0) } }
    }
 
-   private static func numbers<Style: FormatStyle & Sendable>(_ style: Style) -> @Sendable (TemplateValue) -> String? where Style.FormatInput == Double, Style.FormatOutput == String {
-      { value in value.doubleValue.map { style.format($0) } }
+   /// Formats decimals with `decimalStyle`, so they stay exact, and other
+   /// numbers with `style`.
+   private static func numbers<Style: FormatStyle & Sendable, DecimalStyle: FormatStyle & Sendable>(_ style: Style, _ decimalStyle: DecimalStyle) -> @Sendable (TemplateValue) -> String? where Style.FormatInput == Double, Style.FormatOutput == String, DecimalStyle.FormatInput == Decimal, DecimalStyle.FormatOutput == String {
+      { value in
+         if case .decimal(let v) = value {
+            return decimalStyle.format(v)
+         }
+         return value.doubleValue.map { style.format($0) }
+      }
    }
 }
 
@@ -161,17 +208,17 @@ struct ValueFormatter: Sendable {
 /// NumberFormatter aren't documented as safe to use from several threads at
 /// once on every platform this runs on.
 private final class Locked<Value>: @unchecked Sendable {
-   private let value: Value
+   private var value: Value
    private let lock = NSLock()
 
    init(_ value: Value) {
       self.value = value
    }
 
-   func withLock<Result>(_ body: (Value) -> Result) -> Result {
+   func withLock<Result>(_ body: (inout Value) -> Result) -> Result {
       lock.lock()
       defer { lock.unlock() }
-      return body(value)
+      return body(&value)
    }
 }
 
@@ -200,7 +247,7 @@ extension TemplateValue {
          }
          return (try? Date.ISO8601FormatStyle().parse(text))
             ?? (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text))
-      case .int, .double:
+      case .int, .double, .decimal:
          return number.map { Date(timeIntervalSince1970: $0.double) }
       default:
          return nil

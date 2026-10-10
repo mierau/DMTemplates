@@ -130,7 +130,7 @@ extension ExpressionCode {
                return append(.match(regex: Self.append(regex, to: &regexes), options, l))
             }
             return append(.comparison(op, options, l, add(rhs)))
-         case .function(let function, let receiver, let arguments):
+         case .function(let function, _, let receiver, let arguments):
             let span = addOperands([receiver] + arguments)
             return append(.function(Self.append(function, to: &functions), span))
          }

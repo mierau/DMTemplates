@@ -873,6 +873,16 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 }
 
 @Suite struct ReadmeTests {
+   @Test func documentationExamples() throws {
+      let template = try Template("Hello, {% person.firstName %}. You have {% messages.@count | pluralize(\"message\") %}.")
+      #expect(template.render(["person": ["firstName": "Dustin"], "messages": [1, 2, 3]]) == "Hello, Dustin. You have 3 messages.")
+
+      var options = TemplateOptions()
+      options.escaping = .html
+      let page = try Template("<h1>{% post.title %}</h1>{% post.body | raw %}", options: options)
+      #expect(page.render(["post": ["title": "Tom & Jerry", "body": "<p>Hi</p>"]]) == "<h1>Tom &amp; Jerry</h1><p>Hi</p>")
+   }
+
    @Test func customFunctions() throws {
       var options = TemplateOptions()
       options.functions["initials"] = { receiver, _ in
@@ -1013,5 +1023,92 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          return await group.reduce(into: Set<String>()) { $0.formUnion($1) }
       }
       #expect(outputs == ["2025-10-09 01:53 1,234.50"])
+   }
+}
+
+@Suite struct EscapingTests {
+   func render(_ source: String, _ context: TemplateValue, escaping: Escaping = .html) throws -> String {
+      var options = TemplateOptions()
+      options.escaping = escaping
+      return try Template(source, options: options).render(context)
+   }
+
+   @Test func offByDefault() throws {
+      #expect(try Template("{% x %}").render(["x": "<b>"]) == "<b>")
+   }
+
+   @Test func htmlEscapesValuesButNotText() throws {
+      let context: TemplateValue = ["title": "Tom & \"Jerry\" <'s>", "n": 3]
+      #expect(try render("<h1>{% title %}</h1>{% n %}", context) == "<h1>Tom &amp; &quot;Jerry&quot; &lt;&#39;s&gt;</h1>3")
+      #expect(try render("{% foreach t in tags %}<li>{% t %}</li>{% end %}", ["tags": ["a<b", "c"]]) == "<li>a&lt;b</li><li>c</li>")
+   }
+
+   @Test func rawAndEscapeAreWrittenAsTheyAre() throws {
+      let context: TemplateValue = ["body": "<p>Hi</p>", "name": "A&B"]
+      #expect(try render("{% body | raw %}", context) == "<p>Hi</p>")
+      #expect(try render("{% name | escape %}", context) == "A&amp;B")
+      // raw only counts as the last step.
+      #expect(try render("{% body | raw | uppercase %}", context) == "&lt;P&gt;HI&lt;/P&gt;")
+      #expect(try Template("{% body | raw %}").render(context) == "<p>Hi</p>")
+   }
+
+   @Test func customEscaping() throws {
+      let markdown = Escaping { $0.replacingOccurrences(of: "*", with: "\\*") }
+      #expect(try render("*{% x %}*", ["x": "a*b"], escaping: markdown) == "*a\\*b*")
+   }
+}
+
+@Suite struct DecimalTests {
+   let price: TemplateValue = .decimal(Decimal(string: "0.1")!)
+
+   @Test func arithmeticStaysExact() throws {
+      let context: TemplateValue = ["a": price, "b": .decimal(Decimal(string: "0.2")!)]
+      #expect(try Template("{% a + b %}|{% a * 3 %}|{% a - 1 %}|{% a / 4 %}").render(context) == "0.3|0.3|-0.9|0.025")
+      #expect(try Template("{% 0.1 + 0.2 %}").render(nil) == "0.30000000000000004")
+      #expect(try Template("{% a + b == 0.3 %}|{% a * 3 == 0.3 %}|{% a + 0.5 %}").render(context) == "true|true|0.6")
+      #expect(try Template("{% (a + b) == (a * 3) %}|{% a < b %}|{% -a %}").render(context) == "true|true|-0.1")
+   }
+
+   @Test func sumsAndAverages() throws {
+      let context: TemplateValue = ["prices": [price, price, price, 1]]
+      #expect(try Template("{% prices.@sum %}|{% prices.@avg %}|{% prices.@max %}").render(context) == "1.3|0.325|1")
+   }
+
+   @Test func encodableDecimalsStayExact() throws {
+      struct Item: Encodable { let price: Decimal }
+      let template = try Template("{% item.price * 3 %}")
+      #expect(try template.render(encoding: ["item": Item(price: Decimal(string: "19.99")!)]) == "59.97")
+      #expect(TemplateValue(any: Decimal(string: "1.5")!) == .decimal(Decimal(string: "1.5")!))
+   }
+
+   @Test func roundingAndFormatting() throws {
+      var options = TemplateOptions()
+      options.locale = Locale(identifier: "en_US")
+      options.currencyCode = "USD"
+      let context: TemplateValue = ["x": .decimal(Decimal(string: "2.675")!), "y": .decimal(Decimal(string: "-2.5")!)]
+      let template = try Template("{% x | round(2) %} {% x | floor %} {% x | ceil %} {% y | round %} {% y | abs %} {% x | currency %}", options: options)
+      #expect(template.render(context) == "2.68 2 3 -3 2.5 $2.68")
+   }
+}
+
+@Suite struct StreamingTests {
+   @Test func streamsTheSameOutputInPieces() throws {
+      struct Pieces: TextOutputStream {
+         var pieces: [String] = []
+         mutating func write(_ string: String) { pieces.append(string) }
+      }
+      let template = try Template("{% foreach n in numbers %}Line {% n %}: {% name %} ✓\n{% end %}")
+      let context: TemplateValue = ["numbers": .array((0..<5000).map { .int($0) }), "name": "Dústin"]
+      var pieces = Pieces()
+      template.render(context, into: &pieces)
+      #expect(pieces.pieces.count > 1)
+      #expect(pieces.pieces.dropLast().allSatisfy { $0.utf8.count >= Template.chunkSize })
+      #expect(pieces.pieces.joined() == template.render(context))
+   }
+
+   @Test func appendsToAString() throws {
+      var page = "Hi "
+      try Template("{% name %}!").render(["name": "Dustin"], into: &page)
+      #expect(page == "Hi Dustin!")
    }
 }
