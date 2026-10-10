@@ -89,7 +89,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func keyPathsMapOverArrays() throws {
       #expect(try render("{% people.first %}", context) == "Dustin, Garry")
-      #expect(try render("{% people.first | uppercased %}", context) == "DUSTIN, GARRY")
+      #expect(try render("{% people.first | uppercase %}", context) == "DUSTIN, GARRY")
    }
 
    @Test func subscripts() throws {
@@ -212,7 +212,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func keyPathSequences() throws {
       let context: TemplateValue = ["files": [["name": "A.TXT"], ["name": "B.JPG"]]]
-      let piped = "{% foreach(filename in files.name | lowercased) %}{% filename %};{% endforeach %}"
+      let piped = "{% foreach(filename in files.name | lowercase) %}{% filename %};{% endforeach %}"
       #expect(try render(piped, context) == "a.txt;b.jpg;")
    }
 
@@ -271,12 +271,12 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
         - {% friend %} ({% friendIndex+1 %} of {% friends.@count %})
       {% endforeach %}
 
-      Escaped HTML: {% about | escaped %}
-      URL Encoded: {% url | urlEncoded %}
+      Escaped HTML: {% about | escape %}
+      URL Encoded: {% url | urlEncode %}
       {% if(file.fileSize between {0, 100}) %}
-      File size for {% file.name | escaped %} too small!
+      File size for {% file.name | escape %} too small!
       {% else %}
-      File name: {% file.name | escaped %}
+      File name: {% file.name | escape %}
       File size: {% file.fileSize | bytes %}
       {% endif %}
 
@@ -326,32 +326,32 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func urlEncoding() throws {
-      #expect(try render("{% name | urlEncoded %}", ["name": "Düstinø Mîeråü"]) == "D%C3%BCstin%C3%B8%20M%C3%AEer%C3%A5%C3%BC")
-      #expect(try render("{% q | urlEncoded %}", ["q": "a&b=c/d"]) == "a%26b%3Dc%2Fd")
+      #expect(try render("{% name | urlEncode %}", ["name": "Düstinø Mîeråü"]) == "D%C3%BCstin%C3%B8%20M%C3%AEer%C3%A5%C3%BC")
+      #expect(try render("{% q | urlEncode %}", ["q": "a&b=c/d"]) == "a%26b%3Dc%2Fd")
    }
 
    @Test func xmlEscaping() throws {
-      #expect(try render("{% xml | escaped %}", ["xml": "<this>is some & \"xml\"</this>"]) == "&lt;this&gt;is some &amp; &quot;xml&quot;&lt;/this&gt;")
-      #expect(try render("{% s | escaped %}", ["s": "it's\ta\n"]) == "it&apos;s&#x09;a&#x0A;")
+      #expect(try render("{% xml | escape %}", ["xml": "<this>is some & \"xml\"</this>"]) == "&lt;this&gt;is some &amp; &quot;xml&quot;&lt;/this&gt;")
+      #expect(try render("{% s | escape %}", ["s": "it's\ta\n"]) == "it&apos;s&#x09;a&#x0A;")
    }
 
    @Test func textFunctionsRunInOrder() throws {
       var options = TemplateOptions()
       options.functions["quoted"] = Functions.text { "\"\($0)\"" }
       let context: TemplateValue = ["name": "  \nDustin "]
-      #expect(try render("{% name | trimmed | reversed | quoted %}", context, options: options) == "\"nitsuD\"")
-      #expect(try render("{% name | quoted | trimmed %}", context, options: options) == "\"  \nDustin \"")
+      #expect(try render("{% name | trim | reverse | quoted %}", context, options: options) == "\"nitsuD\"")
+      #expect(try render("{% name | quoted | trim %}", context, options: options) == "\"  \nDustin \"")
    }
 
    @Test func textFunctionsMapOverLists() throws {
       var options = TemplateOptions()
       options.functions["shout"] = Functions.text { $0.uppercased() + "!" }
-      #expect(try render("{% names | shout | joined(' ') %}", ["names": ["a", "b"]], options: options) == "A! B!")
+      #expect(try render("{% names | shout | join(' ') %}", ["names": ["a", "b"]], options: options) == "A! B!")
       #expect(try render("[{% missing | shout %}]", options: options) == "[]")
    }
 
    @Test func missingValuesStayMissing() throws {
-      #expect(try render("[{% missing | escaped %}]") == "[]")
+      #expect(try render("[{% missing | escape %}]") == "[]")
    }
 }
 
@@ -455,17 +455,17 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    let context: TemplateValue = ["person": ["firstName": "Dustin"]]
 
    @Test func functionsRunInEveryRender() throws {
-      let template = try Template("[{% person.firstName | uppercased %}]")
+      let template = try Template("[{% person.firstName | uppercase %}]")
       #expect(template.render(context) == "[DUSTIN]")
       #expect(template.render(context, features: []) == "[DUSTIN]")
    }
 
    @Test func methodPipeAndCallSpellingsAgree() throws {
       let spellings = [
-         "{% person.firstName.prefix(3).uppercased() %}",
-         "{% person.firstName | prefix(3) | uppercased %}",
-         "{% person.firstName | prefix(3) | uppercased() %}",
-         "{% uppercased(prefix(person.firstName, 3)) %}",
+         "{% person.firstName.prefix(3).uppercase() %}",
+         "{% person.firstName | prefix(3) | uppercase %}",
+         "{% person.firstName | prefix(3) | uppercase() %}",
+         "{% uppercase(prefix(person.firstName, 3)) %}",
       ]
       for source in spellings {
          #expect(try Template(source).render(context) == "DUS", "\(source)")
@@ -473,7 +473,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func pipesBindTighterThanOperators() throws {
-      #expect(try Template("{% if(person.firstName | lowercased == 'dustin') %}yes{% endif %}").render(context) == "yes")
+      #expect(try Template("{% if(person.firstName | lowercase == 'dustin') %}yes{% endif %}").render(context) == "yes")
       var options = TemplateOptions()
       options.functions["double"] = { receiver, _ in .int((Int(receiver.renderedString) ?? 0) * 2) }
       #expect(try Template("{% 1 + 2 | double %}", options: options).render([:]) == "5")
@@ -481,7 +481,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func pathsContinueAfterCalls() throws {
-      let template = try Template("{% people.reversed()[0].name %} {% people.name | reversed | joined(', ') %}")
+      let template = try Template("{% people.reverse()[0].name %} {% people.name | reverse | join(', ') %}")
       #expect(template.render(["people": [["name": "Ann"], ["name": "Ollie"]]]) == "Ollie Ollie, Ann")
    }
 
@@ -490,14 +490,14 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       func render(_ expression: String) throws -> String {
          try Template("{% \(expression) %}").render(context)
       }
-      #expect(try render("name | trimmed") == "Dustin Mierau")
-      #expect(try render("name | trimmed | lowercased | capitalized") == "Dustin Mierau")
-      #expect(try render("name | trimmed | suffix(6)") == "Mierau")
-      #expect(try render("name | trimmed | dropFirst") == "ustin Mierau")
-      #expect(try render("name | trimmed | dropLast(7)") == "Dustin")
-      #expect(try render("name | trimmed | replacing(' ', '-')") == "Dustin-Mierau")
-      #expect(try render("name | trimmed | reversed") == "uareiM nitsuD")
-      #expect(try render("files | lowercased | joined(', ')") == "a.txt, b.jpg")
+      #expect(try render("name | trim") == "Dustin Mierau")
+      #expect(try render("name | trim | lowercase | capitalize") == "Dustin Mierau")
+      #expect(try render("name | trim | suffix(6)") == "Mierau")
+      #expect(try render("name | trim | dropFirst") == "ustin Mierau")
+      #expect(try render("name | trim | dropLast(7)") == "Dustin")
+      #expect(try render("name | trim | replace(' ', '-')") == "Dustin-Mierau")
+      #expect(try render("name | trim | reverse") == "uareiM nitsuD")
+      #expect(try render("files | lowercase | join(', ')") == "a.txt, b.jpg")
       #expect(try render("path('/avatars', id, 'photo.jpg')") == "/avatars/u-1/photo.jpg")
       #expect(try render("path('~', files)") == "~/A.TXT/B.jpg")
       #expect(try render("empty | default('none')") == "none")
@@ -521,12 +521,12 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
 
    @Test func keysNamedLikeFunctionsAreStillKeys() throws {
-      let template = try Template("{% item.prefix %} {% item.prefix | uppercased %}")
+      let template = try Template("{% item.prefix %} {% item.prefix | uppercase %}")
       #expect(template.render(["item": ["prefix": "mr"]]) == "mr MR")
    }
 
    @Test func functionsWorkInConditionsAndLoops() throws {
-      let template = try Template("{% foreach(n in names) %}{% if(n.@count > 3) %}{% n | lowercased %} {% endif %}{% endforeach %}")
+      let template = try Template("{% foreach(n in names) %}{% if(n.@count > 3) %}{% n | lowercase %} {% endif %}{% endforeach %}")
       #expect(template.render(["names": ["Ann", "DUSTIN", "Ollie"]]) == "dustin ollie ")
    }
 
@@ -542,10 +542,10 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func unknownFunctionsFailAtParse() {
       #expect(throws: TemplateError.self) { try Template("{% x | deleteEverything %}") }
-      #expect(throws: TemplateError.self) { try Template("{% FUNCTION(x, 'uppercased') %}") }
+      #expect(throws: TemplateError.self) { try Template("{% FUNCTION(x, 'uppercase') %}") }
       var options = TemplateOptions()
       options.functions = Functions()
-      #expect(throws: TemplateError.self) { try Template("{% x | uppercased %}", options: options) }
+      #expect(throws: TemplateError.self) { try Template("{% x | uppercase %}", options: options) }
    }
 
    @Test func logCanBeTurnedOff() throws {
@@ -727,7 +727,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
 @Suite struct ConcurrencyTests {
    @Test func oneTemplateRendersConcurrently() async throws {
-      let template = try Template("{% foreach(p in people) %}{% if(p.age >= 40) %}{% p.name | escaped %}{% else %}-{% endif %}{% endforeach %}={% people.@sum.age %}")
+      let template = try Template("{% foreach(p in people) %}{% if(p.age >= 40) %}{% p.name | escape %}{% else %}-{% endif %}{% endforeach %}={% people.@sum.age %}")
 
       let results = await withTaskGroup(of: (Int, String).self) { group in
          for i in 0..<64 {
@@ -759,15 +759,15 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          .string(receiver.renderedString.split(separator: " ").compactMap(\.first).map(String.init).joined())
       }
       options.functions["shout"] = Functions.text { $0.uppercased() + "!" }
-      let template = try Template("{% firstName | trimmed | escaped %}|{% name | initials %}|{% name | shout %}", options: options)
+      let template = try Template("{% firstName | trim | escape %}|{% name | initials %}|{% name | shout %}", options: options)
       let context: TemplateValue = ["firstName": "  Tom & Jerry ", "name": "Dustin Mierau"]
       #expect(template.render(context) == "Tom &amp; Jerry|DM|DUSTIN MIERAU!")
    }
 
    @Test func naturalFunctionExamples() throws {
       let template = try Template("""
-         {% person.firstName.prefix(5).uppercased() %} \
-         {% person.firstName | prefix(5) | uppercased %} \
+         {% person.firstName.prefix(5).uppercase() %} \
+         {% person.firstName | prefix(5) | uppercase %} \
          {% path("~", "dustin", "photo.jpg") %}
          """)
       let context: TemplateValue = ["person": ["firstName": "Dustin"]]
@@ -863,8 +863,8 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func formatsChainWithOtherFunctions() throws {
       let context: TemplateValue = ["when": .date(moment), "dates": [.date(moment)]]
-      #expect(try render("{% dates | date | joined %}", context, options: options) == "Oct 9, 2025")
-      #expect(try render("{% when | format(\"yyyy-MM-dd HH:mm\") | urlEncoded %}", context, options: options) == "2025-10-09%2001%3A53")
+      #expect(try render("{% dates | date | join %}", context, options: options) == "Oct 9, 2025")
+      #expect(try render("{% when | format(\"yyyy-MM-dd HH:mm\") | urlEncode %}", context, options: options) == "2025-10-09%2001%3A53")
    }
 
    @Test func appFunctionsReplaceFormats() throws {
