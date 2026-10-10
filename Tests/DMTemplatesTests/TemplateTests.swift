@@ -89,7 +89,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func keyPathsMapOverArrays() throws {
       #expect(try render("{% people.first %}", context) == "Dustin, Garry")
-      #expect(try render("{% people.first.uppercaseString %}", context) == "DUSTIN, GARRY")
+      #expect(try render("{% people.first | uppercased %}", context) == "DUSTIN, GARRY")
    }
 
    @Test func subscripts() throws {
@@ -104,8 +104,8 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(try render("{% nil %}|{% YES %}|{% false %}") == "|true|false")
    }
 
-   @Test func stringProperties() throws {
-      #expect(try render("{% firstName.length %} {% firstName.lowercaseString %}", context) == "6 dustin")
+   @Test func stringsHaveNoProperties() throws {
+      #expect(try render("{% firstName.@count %}|{% firstName.lowercaseString %}", context) == "6|")
    }
 }
 
@@ -212,8 +212,6 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
 
    @Test func keyPathSequences() throws {
       let context: TemplateValue = ["files": [["name": "A.TXT"], ["name": "B.JPG"]]]
-      let source = "{% foreach(filename in files.name.lowercaseString) %}{% filename %};{% endforeach %}"
-      #expect(try render(source, context) == "a.txt;b.jpg;")
       let piped = "{% foreach(filename in files.name | lowercased) %}{% filename %};{% endforeach %}"
       #expect(try render(piped, context) == "a.txt;b.jpg;")
    }
@@ -468,7 +466,6 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          "{% person.firstName | prefix(3) | uppercased %}",
          "{% person.firstName | prefix(3) | uppercased() %}",
          "{% uppercased(prefix(person.firstName, 3)) %}",
-         "{% FUNCTION(FUNCTION(person.firstName, 'substringToIndex:', 3), 'uppercaseString') %}",
       ]
       for source in spellings {
          #expect(try Template(source).render(context) == "DUS", "\(source)")
@@ -515,20 +512,21 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(throws: TemplateError.self) { try Template("{% name | 'x' %}") }
    }
 
+   @Test func anyNameCanBeAFunction() throws {
+      var options = TemplateOptions()
+      options.functions["function"] = { receiver, _ in .string("f(\(receiver.renderedString))") }
+      options.functions["all"] = { receiver, _ in .string("all \(receiver.renderedString)") }
+      let template = try Template("{% function(x) %} {% x | function %} {% x.function() %} {% all(x) %}", options: options)
+      #expect(template.render(["x": "a"]) == "f(a) f(a) f(a) all a")
+   }
+
    @Test func keysNamedLikeFunctionsAreStillKeys() throws {
       let template = try Template("{% item.prefix %} {% item.prefix | uppercased %}")
       #expect(template.render(["item": ["prefix": "mr"]]) == "mr MR")
    }
 
-   @Test func readmeExamples() throws {
-      let features: RenderFeatures = [.functions]
-      #expect(try Template("{% function(person.firstName, \"substringToIndex:\", 5) %}").render(context, features: features) == "Dusti")
-      #expect(try Template("{% function(function(person.firstName, \"substringToIndex:\", 5), \"uppercaseString\") %}").render(context, features: features) == "DUSTI")
-      #expect(try Template("{% function(\"\".class, \"pathWithComponents:\", {\"~\", \"dustin\", \"photo.jpg\"}) %}").render(context, features: features) == "~/dustin/photo.jpg")
-   }
-
    @Test func functionsWorkInConditionsAndLoops() throws {
-      let template = try Template("{% foreach(n in names) %}{% if(FUNCTION(n, 'length') > 3) %}{% FUNCTION(n, 'lowercaseString') %} {% endif %}{% endforeach %}")
+      let template = try Template("{% foreach(n in names) %}{% if(n.@count > 3) %}{% n | lowercased %} {% endif %}{% endforeach %}")
       #expect(template.render(["names": ["Ann", "DUSTIN", "Ollie"]], features: .functions) == "dustin ollie ")
    }
 
@@ -538,15 +536,16 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          guard case .int(let count)? = arguments.first else { return .null }
          return .string(String(repeating: receiver.renderedString, count: count))
       }
-      let template = try Template("{% FUNCTION(x, 'repeat', 3) %}", options: options)
+      let template = try Template("{% x.repeat(3) %}", options: options)
       #expect(template.render(["x": "ab"], features: .functions) == "ababab")
    }
 
    @Test func unknownFunctionsFailAtParse() {
-      #expect(throws: TemplateError.self) { try Template("{% FUNCTION(x, 'deleteEverything') %}") }
+      #expect(throws: TemplateError.self) { try Template("{% x | deleteEverything %}") }
+      #expect(throws: TemplateError.self) { try Template("{% FUNCTION(x, 'uppercased') %}") }
       var options = TemplateOptions()
       options.functions = Functions()
-      #expect(throws: TemplateError.self) { try Template("{% FUNCTION(x, 'uppercaseString') %}", options: options) }
+      #expect(throws: TemplateError.self) { try Template("{% x | uppercased %}", options: options) }
    }
 
    @Test func logCanBeTurnedOff() throws {
@@ -760,7 +759,7 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       options.functions["reversed"] = { receiver, _ in
          .string(String(receiver.renderedString.reversed()))
       }
-      let template = try Template("{%[we] firstName %}|{% FUNCTION(name, \"reversed\") %}", options: options)
+      let template = try Template("{%[we] firstName %}|{% name | reversed %}", options: options)
       let context: TemplateValue = ["firstName": "  Tom & Jerry ", "name": "abc"]
       #expect(template.render(context, features: [.functions]) == "Tom &amp; Jerry|cba")
    }
@@ -773,16 +772,6 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
          """)
       let context: TemplateValue = ["person": ["firstName": "Dustin"]]
       #expect(template.render(context) == "DUSTI DUSTI ~/dustin/photo.jpg")
-   }
-
-   @Test func functionExamples() throws {
-      let template = try Template("""
-         {% FUNCTION(FUNCTION(person.firstName, "substringToIndex:", 5), "uppercaseString") %} \
-         {% FUNCTION(nil, "pathWithComponents:", {"~", "dustin", "photo.jpg"}) %}
-         """)
-      let context: TemplateValue = ["person": ["firstName": "Dustin"]]
-      #expect(template.render(context) == "DUSTI ~/dustin/photo.jpg")
-      #expect(template.render(context, features: []) == " ")
    }
 
    @Test func formatPatterns() throws {

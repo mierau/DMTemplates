@@ -37,7 +37,6 @@ Value tags, conditions and loops all take expressions, written in a syntax model
 
 * Key paths: `person.name`, `people[0]`, `person["first name"]`, `people[FIRST]`, `people[LAST]`, `people[SIZE]`. A key path through an array collects the key from every element, so `files.name` is an array of names.
 * Collection operators: `@count`, `@sum`, `@avg`, `@min` and `@max`, as in `people.@avg.age`.
-* String properties: `length`, `lowercaseString`, `uppercaseString` and `capitalizedString`.
 * Arithmetic: `+ - * / %`.
 * Comparisons: `== = != <> < <= > >=`, `BETWEEN`, `IN`, `CONTAINS`, `BEGINSWITH` and `ENDSWITH`, with `[c]`, `[d]` or `[cd]` to ignore case or diacritics.
 * Logic: `AND`, `OR` and `NOT`, or `&&`, `||` and `!`.
@@ -158,13 +157,9 @@ Register your own in `TemplateOptions.functions`. A function gets the value it's
 
     {% person.name | initials %}
 
-Calling a function that isn't registered is an error when the template is created. A render can turn calls off by leaving `.functions` out of its features, and they render as nothing:
+Any name works, even one like `function` or `all`. Calling a function that isn't registered is an error when the template is created. A render can turn calls off by leaving `.functions` out of its features, and they render as nothing:
 
     template.render(context, features: [.log])
-
-Templates written for NSExpression keep working: `FUNCTION(value, "name", arguments...)` calls the same functions, and `uppercaseString`, `lowercaseString`, `capitalizedString`, `length`, `substringToIndex:`, `substringFromIndex:` and `pathWithComponents:` are registered too.
-
-    {% FUNCTION(FUNCTION(person.firstName, "substringToIndex:", 5), "uppercaseString") %}
 
 ## Logging
 To help debug a template, a **log** tag writes an expression's value to `TemplateOptions.log`, which prints to standard error by default. Log tags render nothing, and a render can switch them off by leaving `.log` out of its features.

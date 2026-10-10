@@ -189,7 +189,6 @@ private struct Lexer {
 ///     unary          := ("-" | "+") unary | postfix
 ///     postfix        := primary ("." name | "." name call | "." @operator | "[" or "]" | "|" name call?)*
 ///     primary        := number | string | keyword | name | name call | @operator
-///                     | FUNCTION "(" or "," string ("," or)* ")"
 ///                     | "(" or ")" | "{" list "}" | "[" list "]"
 ///     call           := "(" (or ("," or)*)? ")"
 ///
@@ -464,6 +463,13 @@ struct ExpressionParser {
 
       case .identifier(let name):
          advance()
+         if isSymbol("(") {
+            // `name(value, args...)` is `value.name(args...)`. Any registered
+            // name can be called, keywords included.
+            var arguments = try parseArguments()
+            let receiver: Expr = arguments.isEmpty ? .literal(.null) : arguments.removeFirst()
+            return .function(try lookUpFunction(name, at: token), receiver: receiver, arguments: arguments)
+         }
          switch token.keyword {
          case "TRUE", "YES": return .literal(.bool(true))
          case "FALSE", "NO": return .literal(.bool(false))
@@ -471,18 +477,10 @@ struct ExpressionParser {
          case "SELF": return .root
          case "AND", "OR", "BETWEEN", "IN", "CONTAINS", "BEGINSWITH", "ENDSWITH", "LIKE", "MATCHES":
             throw error("Unexpected \(name)", at: token)
-         case "FUNCTION":
-            return try parseFunction()
          case "ANY", "ALL", "SOME", "NONE", "SUBQUERY", "CAST", "TERNARY":
             throw error("\(token.keyword) is not supported", at: token)
          default:
             break
-         }
-         if isSymbol("(") {
-            // `name(value, args...)` is `value.name(args...)`.
-            var arguments = try parseArguments()
-            let receiver: Expr = arguments.isEmpty ? .literal(.null) : arguments.removeFirst()
-            return .function(try lookUpFunction(name, at: token), receiver: receiver, arguments: arguments)
          }
          if let slot = locals.lastIndex(of: name) {
             return .local(slot)
@@ -506,27 +504,6 @@ struct ExpressionParser {
       default:
          throw error("Unexpected \(describe(token))")
       }
-   }
-
-   /// `FUNCTION(receiver, "name", arguments...)`, after the keyword.
-   private mutating func parseFunction() throws -> Expr {
-      try expect("(")
-      let receiver = try parseOr()
-      try expect(",")
-      guard case .string(let name) = current.kind else {
-         throw error("FUNCTION needs a quoted function name after the receiver")
-      }
-      guard let function = functions[name] else {
-         throw error("Unknown function \"\(name)\"")
-      }
-      advance()
-      var arguments: [Expr] = []
-      while isSymbol(",") {
-         advance()
-         arguments.append(try parseOr())
-      }
-      try expect(")")
-      return .function(function, receiver: receiver, arguments: arguments)
    }
 
    /// A call to `name` on `receiver`, after the name: `(arguments...)`, or

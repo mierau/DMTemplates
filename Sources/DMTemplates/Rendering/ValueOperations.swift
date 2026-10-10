@@ -12,22 +12,13 @@ import Foundation
 // MARK: - Key paths
 
 extension TemplateValue {
-   /// The value for `key`. Arrays collect the key from every element, like KVC,
-   /// and strings answer a few NSString properties.
+   /// The value for `key`. Arrays collect the key from every element, like KVC.
    func member(_ key: String) -> TemplateValue {
       switch self {
       case .dictionary(let items):
          return items[key] ?? .null
       case .array(let items):
          return .array(items.map { $0.member(key) })
-      case .string(let text):
-         switch key {
-         case "length": return .int(text.utf16.count)
-         case "lowercaseString": return .string(text.lowercased())
-         case "uppercaseString": return .string(text.uppercased())
-         case "capitalizedString": return .string(text.capitalized)
-         default: return .null
-         }
       default:
          return .null
       }
