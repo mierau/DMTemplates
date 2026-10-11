@@ -509,7 +509,7 @@ struct ExpressionParser {
             break
          }
          if let slot = locals.lastIndex(of: name) {
-            return .local(slot)
+            return .local(slot, name: name)
          }
          return .path(.root, [.key(name)])
 

@@ -49,7 +49,7 @@ Every value tag then escapes `&`, `<`, `>`, `"` and `'`. A value tag ending in `
 ## Expressions
 Value tags, conditions and loops all take expressions, written in a syntax modeled on NSPredicate's:
 
-* Key paths: `person.name`, `people[0]`, `person["first name"]`, `people[FIRST]`, `people[LAST]`, `people[SIZE]`. A key path through an array collects the key from every element, so `files.name` is an array of names.
+* Key paths: `person.name`, `people[0]`, `person["first name"]`, `people[FIRST]`, `people[LAST]`, `people[SIZE]`. A key path through an array collects the key from every element, so `files.name` is an array of names. Indexing text gives a character, so `name[0]` is the first letter.
 * Collection operators: `@count`, `@sum`, `@avg`, `@min` and `@max`, as in `people.@avg.age`.
 * Arithmetic: `+ - * / %`. `+` also joins text, as in `"Hi " + person.name`, whenever either side is text that isn't a number.
 * Comparisons: `== = != <> < <= > >=`, `BETWEEN`, `IN`, `CONTAINS`, `BEGINSWITH`, `ENDSWITH`, `LIKE` and `MATCHES`, with `[c]`, `[d]` or `[cd]` to ignore case or diacritics.
@@ -95,6 +95,20 @@ Inside a loop, the current index is available as the loop variable's name follow
 
     {% foreach(contact in person.contacts) %}
       Contact {% contactIndex + 1 %}: {% contact.firstName %}
+    {% endforeach %}
+
+An **else** inside a loop runs when there's nothing to loop over:
+
+    {% foreach contact in person.contacts %}
+      {% contact.firstName %}
+    {% else %}
+      No contacts yet.
+    {% endforeach %}
+
+A loop over a dictionary gets each entry as `key` and `value`, in key order:
+
+    {% foreach price in prices %}
+      {% price.key %}: {% price.value | currency %}
     {% endforeach %}
 
 ## Functions
@@ -169,6 +183,16 @@ Any name works, even one like `function` or `all`, and a function you register r
 To help debug a template, a **log** tag writes an expression's value to `TemplateOptions.log`, which prints to standard error by default. Log tags render nothing, and a render can switch them off by leaving `.log` out of its features.
 
     {% log(person.firstName) %}
+
+A misspelled key renders as nothing. To find typos like that, render with the `.strict` feature, which reports every key a tag asks for that the context doesn't have, with its line, to `TemplateOptions.log`. A key that's there with a `nil` value isn't reported.
+
+    template.render(context, features: [.log, .strict])
+    // line 3: no value for 'naem' in person.naem
+
+## Comments
+A tag starting with `#` is a comment and renders nothing.
+
+    {%# Shown on the account page. %}
 
 ## Custom expressions
 Expressions are compiled through the `ExpressionCompiler` protocol, and `TemplateOptions.expressionCompiler` can replace the built-in `NativeExpressionCompiler` with your own.

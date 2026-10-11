@@ -8,8 +8,8 @@ indirect enum Expr: Sendable {
    case literal(TemplateValue)
    /// The context being rendered (`self`).
    case root
-   /// A loop variable, by slot.
-   case local(Int)
+   /// A loop variable, by slot. The name is for messages.
+   case local(Int, name: String)
    /// An array literal.
    case list([Expr])
    /// A value followed by keys, subscripts and collection operators.

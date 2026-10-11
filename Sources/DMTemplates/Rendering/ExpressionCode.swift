@@ -20,7 +20,8 @@ final class ExpressionCode: @unchecked Sendable {
    enum Operation {
       case literal(value: Int32)
       case root
-      case local(slot: Int32)
+      /// A loop variable. `name` is in `strings`, for messages.
+      case local(slot: Int32, name: Int32)
       /// An array literal; elements are operations listed in `operands`.
       case list(Span)
       case path(base: Int32, steps: Span)
@@ -97,8 +98,8 @@ extension ExpressionCode {
             return append(.literal(value: Self.append(value, to: &values)))
          case .root:
             return append(.root)
-         case .local(let slot):
-            return append(.local(slot: Int32(slot)))
+         case .local(let slot, let name):
+            return append(.local(slot: Int32(slot), name: Self.append(name, to: &strings)))
          case .list(let elements):
             return append(.list(addOperands(elements)))
          case .path(let base, let pathSteps):
@@ -189,7 +190,7 @@ struct Interpreter {
       case .root:
          return scope.root
 
-      case .local(let slot):
+      case .local(let slot, _):
          return scope.locals[Int(slot)]
 
       case .list(let elements):
@@ -255,5 +256,122 @@ struct Interpreter {
          }
       }
       return value
+   }
+
+   // MARK: Strict mode
+
+   /// Adds the keys the expression's paths ask for but the context doesn't
+   /// have to `missing`, for `RenderFeatures.strict`. It's a separate pass
+   /// over the expression, so that rendering without strict mode pays
+   /// nothing for it. Like `evaluate`, it skips the right side of `and` and
+   /// `or` when the left side decides.
+   func findMissingKeys(_ index: Int32, in scope: ExpressionScope, into missing: MissingKeys) {
+      func find(_ index: Int32) {
+         findMissingKeys(index, in: scope, into: missing)
+      }
+      switch operations[Int(index)] {
+      case .literal, .root, .local:
+         break
+      case .list(let elements):
+         elements.range.forEach { find(operands[$0]) }
+      case .path(let base, let pathSteps):
+         find(base)
+         findMissingKey(evaluate(base, in: scope), pathSteps.range, in: scope, base: base, start: pathSteps.range.lowerBound, into: missing)
+      case .negate(let operand), .not(let operand), .match(_, _, let operand):
+         find(operand)
+      case .and(let lhs, let rhs):
+         find(lhs)
+         if evaluate(lhs, in: scope).isTruthy { find(rhs) }
+      case .or(let lhs, let rhs):
+         find(lhs)
+         if !evaluate(lhs, in: scope).isTruthy { find(rhs) }
+      case .arithmetic(_, let lhs, let rhs), .comparison(_, _, let lhs, let rhs):
+         find(lhs)
+         find(rhs)
+      case .function(_, let span):
+         span.range.forEach { find(operands[$0]) }
+      }
+   }
+
+   /// Walks a path like `walk`, adding the first key it can't find to
+   /// `missing`. `base` and `start` are where the whole path begins, for
+   /// naming it.
+   private func findMissingKey(_ value: TemplateValue, _ range: Range<Int>, in scope: ExpressionScope, base: Int32, start: Int, into missing: MissingKeys) {
+      var value = value
+      for index in range {
+         switch steps[index] {
+         case .key(let string):
+            let key = strings[Int(string)]
+            guard value.hasMember(key) else {
+               return missing.add(key: key, path: describe(base, start...index, in: scope))
+            }
+            value = value.member(key)
+         case .index(let operation):
+            findMissingKeys(operation, in: scope, into: missing)
+            let position = evaluate(operation, in: scope)
+            if case .dictionary(let items) = value, items[position.renderedString] == nil {
+               return missing.add(key: position.renderedString, path: describe(base, start...index, in: scope))
+            }
+            value = value.element(at: position)
+         case .first:
+            value = value.firstElement
+         case .last:
+            value = value.lastElement
+         case .size, .aggregate(.count):
+            value = value.elementCount
+         case .aggregate:
+            guard case .array(let items) = value else {
+               return
+            }
+            for item in items {
+               findMissingKey(item, (index + 1)..<range.upperBound, in: scope, base: base, start: start, into: missing)
+            }
+            return
+         }
+      }
+   }
+
+   /// A path as a template would spell it, such as `person.name` or
+   /// `people[0]`, for messages.
+   private func describe(_ base: Int32, _ range: ClosedRange<Int>, in scope: ExpressionScope) -> String {
+      var text: String
+      switch operations[Int(base)] {
+      case .root: text = ""
+      case .local(_, let name): text = strings[Int(name)]
+      default: text = "(…)"
+      }
+      for index in range {
+         switch steps[index] {
+         case .key(let string):
+            text += text.isEmpty ? strings[Int(string)] : "." + strings[Int(string)]
+         case .index(let operation):
+            let position = evaluate(operation, in: scope)
+            if case .string(let key) = position {
+               text += "[\"\(key)\"]"
+            }
+            else {
+               text += "[\(position.renderedString)]"
+            }
+         case .first: text += "[FIRST]"
+         case .last: text += "[LAST]"
+         case .size: text += "[SIZE]"
+         case .aggregate(let op): text += (text.isEmpty ? "@" : ".@") + op.rawValue
+         }
+      }
+      return text
+   }
+}
+
+/// Keys a key path asked for that weren't there, collected while one render
+/// evaluates an expression. Only that render uses it.
+final class MissingKeys {
+   private(set) var messages: [String] = []
+
+   func add(key: String, path: String) {
+      messages.append(path == key ? "no value for '\(key)'" : "no value for '\(key)' in \(path)")
+   }
+
+   func removeAll() {
+      messages.removeAll(keepingCapacity: true)
    }
 }

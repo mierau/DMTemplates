@@ -305,6 +305,12 @@ public struct RenderFeatures: OptionSet, Sendable {
    /// Sends `log(...)` tags to `TemplateOptions.log`. When off, they're skipped.
    public static let log = RenderFeatures(rawValue: 1 << 1)
 
+   /// Reports key paths that name a key the context doesn't have, such as a
+   /// misspelled `{% person.naem %}`, to `TemplateOptions.log` with the line
+   /// of the tag. A key that's there with a null value isn't reported. Meant
+   /// for catching typos while developing.
+   public static let strict = RenderFeatures(rawValue: 1 << 2)
+
    /// Logging on.
    public static let `default`: RenderFeatures = [.log]
 }
