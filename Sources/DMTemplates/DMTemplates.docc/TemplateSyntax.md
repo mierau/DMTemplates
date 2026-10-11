@@ -38,11 +38,21 @@ A `foreach` loop runs over an array from a key path, an expression or an inline 
 {% foreach(name in {"Dustin", "Mary Ann", "Ollie"}) %}{% name %} {% end %}
 ```
 
+An `else` inside a loop runs when there's nothing to loop over. A loop over a dictionary gets each entry as `key` and `value`, in key order.
+
+```
+{% foreach price in prices %}
+  {% price.key %}: {% price.value | currency %}
+{% else %}
+  No prices yet.
+{% endforeach %}
+```
+
 ## Expressions
 
 Value tags, conditions and loops take expressions, written in a syntax modeled on NSPredicate's:
 
-- Key paths: `person.name`, `people[0]`, `person["first name"]`, `people[FIRST]`, `people[LAST]`, `people[SIZE]`. A key path through an array collects the key from every element, so `files.name` is an array of names.
+- Key paths: `person.name`, `people[0]`, `person["first name"]`, `people[FIRST]`, `people[LAST]`, `people[SIZE]`. A key path through an array collects the key from every element, so `files.name` is an array of names. Indexing text gives a character, so `name[0]` is the first letter.
 - Collection operators: `@count`, `@sum`, `@avg`, `@min` and `@max`, as in `people.@avg.age`.
 - Arithmetic: `+ - * / %`. `+` also joins text, as in `"Hi " + person.name`, whenever either side is text that isn't a number.
 - Comparisons: `== = != <> < <= > >=`, `BETWEEN`, `IN`, `CONTAINS`, `BEGINSWITH`, `ENDSWITH`, `LIKE` and `MATCHES`, with `[c]`, `[d]` or `[cd]` to ignore case or diacritics.
@@ -59,6 +69,12 @@ A `log` tag writes an expression's value to ``TemplateOptions/log`` and renders 
 ```
 {% log(person.firstName) %}
 ```
+
+A misspelled key renders as nothing. Rendering with ``RenderFeatures/strict`` reports every key a tag asks for that the context doesn't have, with its line, to ``TemplateOptions/log``.
+
+## Comments
+
+A tag starting with `#`, such as `{%# Shown on the account page. %}`, is a comment and renders nothing.
 
 ## Delimiters
 

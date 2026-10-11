@@ -1112,3 +1112,166 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(page == "Hi Dustin!")
    }
 }
+
+@Suite struct LoopElseTests {
+   let source = "{% foreach item in items %}{% item %},{% else %}none{% endforeach %}!"
+
+   @Test func elseRunsOnlyWhenEmpty() throws {
+      #expect(try render(source, ["items": [1, 2]]) == "1,2,!")
+      #expect(try render(source, ["items": []]) == "none!")
+      #expect(try render(source) == "none!")
+      #expect(try render(source, ["items": "text"]) == "none!")
+   }
+
+   @Test func elseOnItsOwnLine() throws {
+      let source = "{% foreach(n in list) %}\n- {% n %}\n{% else %}\nNothing yet.\n{% end %}\ndone"
+      #expect(try render(source, ["list": [1, 2]]) == "- 1\n- 2\ndone")
+      #expect(try render(source, ["list": []]) == "Nothing yet.\ndone")
+   }
+
+   @Test func loopVariablesAreOutOfScopeInElse() throws {
+      let source = "{% foreach(item in items) %}{% item %}{% else %}[{% item %}]{% endforeach %}"
+      #expect(try render(source, ["items": [], "item": "root"]) == "[root]")
+   }
+
+   @Test func conditionalsInsideLoopKeepTheirElse() throws {
+      let source = "{% foreach(n in list) %}{% if n > 1 %}big{% else %}small{% endif %} {% else %}empty{% endforeach %}"
+      #expect(try render(source, ["list": [1, 2]]) == "small big ")
+      #expect(try render(source, ["list": []]) == "empty")
+   }
+
+   @Test func nestedLoopsWithElse() throws {
+      let source = "{% foreach(g in groups) %}{% g.name %}:{% foreach(i in g.items) %}{% i %}{% else %}-{% endforeach %};{% else %}no groups{% endforeach %}"
+      let context: TemplateValue = ["groups": [["name": "a", "items": [1, 2]], ["name": "b", "items": []]]]
+      #expect(try render(source, context) == "a:12;b:-;")
+      #expect(try render(source, ["groups": []]) == "no groups")
+   }
+
+   @Test func secondElseIsAnError() throws {
+      #expect(throws: TemplateError.self) {
+         try Template("{% foreach(i in x) %}{% else %}{% else %}{% endforeach %}")
+      }
+      #expect(throws: TemplateError.self) {
+         try Template("{% foreach(i in x) %}{% elseif y %}{% endforeach %}")
+      }
+   }
+}
+
+@Suite struct DictionaryLoopTests {
+   @Test func loopsOverEntriesInKeyOrder() throws {
+      let source = "{% foreach(entry in prices) %}{% entry.key %}={% entry.value %} {% endforeach %}"
+      #expect(try render(source, ["prices": ["pear": 3, "apple": 1, "fig": 2]]) == "apple=1 fig=2 pear=3 ")
+   }
+
+   @Test func entriesHaveAnIndex() throws {
+      let source = "{% foreach(entry in d) %}{% entryIndex %}:{% entry.key %} {% endforeach %}"
+      #expect(try render(source, ["d": ["b": 1, "a": 2]]) == "0:a 1:b ")
+   }
+
+   @Test func emptyDictionaryRunsElse() throws {
+      #expect(try render("{% foreach(e in d) %}x{% else %}empty{% endforeach %}", ["d": .dictionary([:])]) == "empty")
+   }
+}
+
+@Suite struct TextIndexTests {
+   let context: TemplateValue = ["name": "Düstin 🙂"]
+
+   @Test func indexesCharacters() throws {
+      #expect(try render("{% name[0] %}{% name[1] %}{% name[7] %}", context) == "Dü🙂")
+      #expect(try render("{% name[FIRST] %}{% name[LAST] %}", context) == "D🙂")
+      #expect(try render("{% name.@count %}", context) == "8")
+   }
+
+   @Test func outOfRangeIsNull() throws {
+      #expect(try render("[{% name[8] %}][{% name[-1] %}][{% name['x'] %}]", context) == "[][][]")
+      #expect(try render("[{% empty[0] %}][{% empty[FIRST] %}]", ["empty": ""]) == "[][]")
+   }
+}
+
+@Suite struct CommentTests {
+   @Test func commentsRenderNothing() throws {
+      #expect(try render("a{%# a note %}b") == "ab")
+      #expect(try render("a{%#%}b") == "ab")
+      #expect(try render("a{% # spaced out %}b") == "ab")
+   }
+
+   @Test func commentsOnTheirOwnLineLeaveNoBlankLine() throws {
+      #expect(try render("a\n{%# note %}\nb") == "a\nb")
+   }
+
+   @Test func commentsCanHoldAnything() throws {
+      #expect(try render("{%# {% if( unbalanced \"quotes %}ok") == "ok")
+   }
+
+   @Test func commentsFollowCustomDelimiters() throws {
+      var options = TemplateOptions()
+      options.beginDelimiter = "<<"
+      options.endDelimiter = ">>"
+      #expect(try render("a<<# note >>b", options: options) == "ab")
+   }
+}
+
+@Suite struct StrictTests {
+   private func strict(_ source: String, _ context: TemplateValue) throws -> (output: String, messages: [String]) {
+      let collector = LogTests.Collector()
+      var options = TemplateOptions()
+      options.log = { collector.append($0) }
+      let output = try Template(source, options: options).render(context, features: [.log, .strict])
+      return (output, collector.messages)
+   }
+
+   let context: TemplateValue = [
+      "person": ["name": "Dustin", "nickname": nil],
+      "people": [["name": "a"], ["name": "b", "age": 3]],
+      "title": "Hi",
+   ]
+
+   @Test func reportsMissingKeysWithTheirLine() throws {
+      let result = try strict("{% title %}\n{% naem %}\n{% person.naem %}", context)
+      #expect(result.output == "Hi\n\n")
+      #expect(result.messages == ["line 2: no value for 'naem'", "line 3: no value for 'naem' in person.naem"])
+   }
+
+   @Test func keysWithNullValuesAreFine() throws {
+      #expect(try strict("{% person.nickname %}{% person.name %}", context).messages.isEmpty)
+   }
+
+   @Test func reportsOnlyTheFirstMissingStep() throws {
+      #expect(try strict("{% person.address.city %}", context).messages == ["line 1: no value for 'address' in person.address"])
+   }
+
+   @Test func reportsInConditionsLoopsAndSubscripts() throws {
+      let source = "{% if person.isAdmin %}x{% endif %}\n{% foreach(p in people) %}{% p.age %}{% endforeach %}\n{% person[\"nick\"] %}{% people.age %}"
+      #expect(try strict(source, context).messages == [
+         "line 1: no value for 'isAdmin' in person.isAdmin",
+         "line 2: no value for 'age' in p.age",
+         "line 3: no value for 'nick' in person[\"nick\"]",
+         "line 3: no value for 'age' in people.age",
+      ])
+   }
+
+   @Test func skipsWhatAndAndOrSkip() throws {
+      #expect(try strict("{% if person.isAdmin and person.level > 2 %}x{% endif %}", context).messages == ["line 1: no value for 'isAdmin' in person.isAdmin"])
+      #expect(try strict("{% title or person.backup %}", context).messages.isEmpty)
+   }
+
+   @Test func reportsInsideAggregatesAndFunctions() throws {
+      #expect(try strict("{% people.@sum.agee %}{% person.nmae | uppercase %}", context).messages == [
+         "line 1: no value for 'agee' in people.@sum.agee",
+         "line 1: no value for 'nmae' in person.nmae",
+      ])
+   }
+
+   @Test func reportsEachTagOnce() throws {
+      let source = "{% foreach(p in people) %}{% p.nope %}{% endforeach %}"
+      #expect(try strict(source, context).messages == ["line 1: no value for 'nope' in p.nope"])
+   }
+
+   @Test func offByDefault() throws {
+      let collector = LogTests.Collector()
+      var options = TemplateOptions()
+      options.log = { collector.append($0) }
+      #expect(try Template("{% naem %}", options: options).render(context) == "")
+      #expect(collector.messages.isEmpty)
+   }
+}

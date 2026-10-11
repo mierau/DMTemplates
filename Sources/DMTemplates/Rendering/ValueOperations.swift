@@ -24,7 +24,20 @@ extension TemplateValue {
       }
    }
 
-   /// `value[index]`: an array element by position, or a dictionary value by key.
+   /// Whether `member(key)` finds something: the dictionary has the key, or
+   /// every element of the array does. Null has every key, so a path that
+   /// already came up empty isn't reported twice.
+   func hasMember(_ key: String) -> Bool {
+      switch self {
+      case .null: return true
+      case .dictionary(let items): return items[key] != nil
+      case .array(let items): return items.allSatisfy { $0.hasMember(key) }
+      default: return false
+      }
+   }
+
+   /// `value[index]`: an array element or a text's character by position, or
+   /// a dictionary value by key.
    func element(at index: TemplateValue) -> TemplateValue {
       switch (self, index) {
       case (.array(let items), _):
@@ -32,7 +45,14 @@ extension TemplateValue {
             return .null
          }
          return items[i]
-      case (.dictionary, _), (.string, _):
+      case (.string(let text), _):
+         guard case .int(let i)? = index.number, i >= 0,
+               let position = text.index(text.startIndex, offsetBy: i, limitedBy: text.endIndex),
+               position < text.endIndex else {
+            return .null
+         }
+         return .string(String(text[position]))
+      case (.dictionary, _):
          return member(index.renderedString)
       default:
          return .null
@@ -40,11 +60,19 @@ extension TemplateValue {
    }
 
    var firstElement: TemplateValue {
-      if case .array(let items) = self, let first = items.first { first } else { .null }
+      switch self {
+      case .array(let items): items.first ?? .null
+      case .string(let text): text.first.map { .string(String($0)) } ?? .null
+      default: .null
+      }
    }
 
    var lastElement: TemplateValue {
-      if case .array(let items) = self, let last = items.last { last } else { .null }
+      switch self {
+      case .array(let items): items.last ?? .null
+      case .string(let text): text.last.map { .string(String($0)) } ?? .null
+      default: .null
+      }
    }
 
    /// `@count`: the number of elements, entries or characters.

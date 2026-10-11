@@ -18,8 +18,8 @@ final class Program: @unchecked Sendable {
       /// Continues if the expression is truthy, otherwise jumps to `otherwise`.
       case branch(ExpressionRef, otherwise: Int32)
       case jump(Int32)
-      /// Starts looping over the expression's elements, or jumps to `exit`
-      /// when there are none.
+      /// Starts looping over the expression's elements, or a dictionary's
+      /// entries, or jumps to `exit` when there are none.
       case loop(ExpressionRef, slot: Int32, exit: Int32)
       /// Moves to the loop's next element and jumps back to `body`, or falls
       /// through when done.
@@ -36,6 +36,8 @@ final class Program: @unchecked Sendable {
    }
 
    private let instructions: UnsafeMutableBufferPointer<Instruction>
+   /// The template line of each instruction's tag, for messages.
+   private let lines: UnsafeMutableBufferPointer<Int32>
    private let text: UnsafeMutableBufferPointer<UInt8>
    private let custom: UnsafeMutableBufferPointer<any CompiledExpression>
    private let code: ExpressionCode
@@ -47,6 +49,7 @@ final class Program: @unchecked Sendable {
       var builder = Builder(options: options)
       builder.add(template.nodes)
       self.instructions = .copying(builder.instructions)
+      self.lines = .copying(builder.lines)
       self.text = .copying(builder.text)
       self.custom = .copying(builder.custom)
       self.code = ExpressionCode(builder.code)
@@ -57,6 +60,7 @@ final class Program: @unchecked Sendable {
 
    deinit {
       instructions.release()
+      lines.release()
       text.release()
       custom.release()
    }
@@ -74,17 +78,26 @@ final class Program: @unchecked Sendable {
    func run(_ context: TemplateValue, features: RenderFeatures, into output: inout [UInt8], flushingAt limit: Int = .max, _ flush: (inout [UInt8]) -> Void = { _ in }) {
       let interpreter = code.interpreter
       var scope = ExpressionScope(root: context, features: features, localCount: localCount)
+      let missingKeys = features.contains(.strict) ? MissingKeys() : nil
       var loops: [Loop] = []
       output.reserveCapacity(min(text.count * 3 / 2, limit))
 
+      var pc = 0
+      var reported: Set<String> = []
+
       func evaluate(_ expression: ExpressionRef) -> TemplateValue {
          switch expression {
-         case .native(let operation): return interpreter.evaluate(operation, in: scope)
-         case .custom(let index): return custom[Int(index)].evaluate(in: scope)
+         case .native(let operation):
+            if let missingKeys {
+               interpreter.findMissingKeys(operation, in: scope, into: missingKeys)
+               report(missingKeys, line: lines[pc], &reported)
+            }
+            return interpreter.evaluate(operation, in: scope)
+         case .custom(let index):
+            return custom[Int(index)].evaluate(in: scope)
          }
       }
 
-      var pc = 0
       while pc < instructions.count {
          switch instructions[pc] {
          case .text(let span):
@@ -104,7 +117,17 @@ final class Program: @unchecked Sendable {
             pc = Int(target)
 
          case .loop(let sequence, let slot, let exit):
-            guard case .array(let items) = evaluate(sequence), !items.isEmpty else {
+            let items: [TemplateValue]
+            switch evaluate(sequence) {
+            case .array(let elements):
+               items = elements
+            case .dictionary(let entries):
+               // Each entry as `key` and `value`, in key order.
+               items = entries.sorted { $0.key < $1.key }.map { .dictionary(["key": .string($0.key), "value": $0.value]) }
+            default:
+               items = []
+            }
+            guard !items.isEmpty else {
                pc = Int(exit)
                break
             }
@@ -135,6 +158,19 @@ final class Program: @unchecked Sendable {
             pc += 1
          }
       }
+   }
+
+   /// Logs the keys an expression found missing, each once per tag rather
+   /// than once per time around a loop.
+   private func report(_ missing: MissingKeys, line: Int32, _ reported: inout Set<String>) {
+      guard !missing.messages.isEmpty else { return }
+      for message in missing.messages {
+         let message = "line \(line): \(message)"
+         if reported.insert(message).inserted {
+            log(message)
+         }
+      }
+      missing.removeAll()
    }
 
    /// Writes a value tag's value, escaped as the options ask.
@@ -173,6 +209,7 @@ final class Program: @unchecked Sendable {
    private struct Builder {
       let options: TemplateOptions
       var instructions: [Instruction] = []
+      var lines: [Int32] = []
       var text: [UInt8] = []
       var custom: [any CompiledExpression] = []
       var code = ExpressionCode.Builder()
@@ -184,6 +221,11 @@ final class Program: @unchecked Sendable {
       /// The index the next instruction will get.
       private var next: Int32 { Int32(instructions.count) }
 
+      private mutating func emit(_ instruction: Instruction, line: Int = 0) {
+         instructions.append(instruction)
+         lines.append(Int32(clamping: line))
+      }
+
       mutating func add(_ nodes: [Node]) {
          for node in nodes {
             add(node)
@@ -193,11 +235,11 @@ final class Program: @unchecked Sendable {
       private mutating func add(_ node: Node) {
          switch node {
          case .text(let string):
-            instructions.append(.text(Span(start: text.count, count: string.utf8.count)))
+            emit(.text(Span(start: text.count, count: string.utf8.count)))
             text.append(contentsOf: string.utf8)
 
          case .value(let expression):
-            instructions.append(.value(add(expression), raw: Self.isRaw(expression)))
+            emit(.value(add(expression), raw: Self.isRaw(expression)), line: expression.line)
 
          case .conditional(let branches, let otherwise):
             // Each branch tests its condition and skips to the next branch when
@@ -207,11 +249,11 @@ final class Program: @unchecked Sendable {
             for (number, branch) in branches.enumerated() {
                let condition = add(branch.condition)
                let test = instructions.count
-               instructions.append(.branch(condition, otherwise: -1))
+               emit(.branch(condition, otherwise: -1), line: branch.condition.line)
                add(branch.body)
                if otherwise != nil || number < branches.count - 1 {
                   exits.append(instructions.count)
-                  instructions.append(.jump(-1))
+                  emit(.jump(-1))
                }
                instructions[test] = .branch(condition, otherwise: next)
             }
@@ -222,30 +264,41 @@ final class Program: @unchecked Sendable {
                instructions[exit] = .jump(next)
             }
 
-         case .loop(let slot, let sequence, let body):
+         case .loop(let slot, let sequence, let body, let otherwise):
+            // With an else, an empty sequence exits to it, and a finished loop
+            // jumps past it.
             let expression = add(sequence)
             let start = instructions.count
-            instructions.append(.loop(expression, slot: Int32(slot), exit: -1))
+            emit(.loop(expression, slot: Int32(slot), exit: -1), line: sequence.line)
             add(body)
-            instructions.append(.next(slot: Int32(slot), body: Int32(start + 1)))
-            instructions[start] = .loop(expression, slot: Int32(slot), exit: next)
+            emit(.next(slot: Int32(slot), body: Int32(start + 1)))
+            if let otherwise {
+               let skip = instructions.count
+               emit(.jump(-1))
+               instructions[start] = .loop(expression, slot: Int32(slot), exit: next)
+               add(otherwise)
+               instructions[skip] = .jump(next)
+            }
+            else {
+               instructions[start] = .loop(expression, slot: Int32(slot), exit: next)
+            }
 
          case .log(let expression):
-            instructions.append(.log(add(expression)))
+            emit(.log(add(expression)), line: expression.line)
          }
       }
 
       /// Whether a value tag ends by calling `raw` or `escape`, so its
       /// output isn't escaped (again).
       private static func isRaw(_ expression: TagExpression) -> Bool {
-         if case .native(.function(_, let name, _, _)) = expression {
+         if case .native(.function(_, let name, _, _)) = expression.kind {
             return name == "raw" || name == "escape"
          }
          return false
       }
 
       private mutating func add(_ expression: TagExpression) -> ExpressionRef {
-         switch expression {
+         switch expression.kind {
          case .native(let syntax):
             return .native(code.add(syntax))
          case .custom(let compiled):

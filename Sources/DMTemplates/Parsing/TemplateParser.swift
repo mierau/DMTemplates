@@ -14,7 +14,8 @@ enum Node {
    case text(String)
    case value(TagExpression)
    case conditional([Branch], otherwise: [Node]?)
-   case loop(slot: Int, sequence: TagExpression, body: [Node])
+   /// `otherwise` runs when the sequence is empty.
+   case loop(slot: Int, sequence: TagExpression, body: [Node], otherwise: [Node]?)
    case log(TagExpression)
 }
 
@@ -24,11 +25,17 @@ struct Branch {
    let body: [Node]
 }
 
-/// A tag's compiled expression: a syntax tree from the built-in language, or
-/// whatever a custom `ExpressionCompiler` returned.
-enum TagExpression {
-   case native(Expr)
-   case custom(any CompiledExpression)
+/// A tag's compiled expression, and the line its tag is on.
+struct TagExpression {
+   /// A syntax tree from the built-in language, or whatever a custom
+   /// `ExpressionCompiler` returned.
+   enum Kind {
+      case native(Expr)
+      case custom(any CompiledExpression)
+   }
+
+   let kind: Kind
+   let line: Int
 }
 
 /// Splits a template into text and tags and builds the node tree.
@@ -39,7 +46,7 @@ struct TemplateParser {
    private let source: SourceText
    private let beginDelimiter: [UInt8]
    private let endDelimiter: [UInt8]
-   private let compileExpression: (_ source: String, _ locals: [String]) throws -> TagExpression
+   private let compileExpression: (_ source: String, _ locals: [String]) throws -> TagExpression.Kind
 
    // The parser deliberately holds no existentials (such as
    // `TemplateOptions.expressionCompiler`): they make the struct address-only,
@@ -51,6 +58,11 @@ struct TemplateParser {
    /// Loop variables in scope, by slot.
    private var locals: [String] = []
    private var localCount = 0
+
+   /// The line `lineOffset` is on. Tags are read in order, so finding a tag's
+   /// line only counts the newlines since the last one.
+   private var line = 1
+   private var lineOffset = 0
 
    private struct Block {
       enum Kind {
@@ -69,6 +81,8 @@ struct TemplateParser {
       /// Conditionals: the condition of the branch being read, or nil once
       /// past `else`.
       var condition: TagExpression?
+      /// Loops: the loop's body, once past `else`.
+      var loopBody: [Node]?
    }
 
    private enum Tag {
@@ -81,6 +95,7 @@ struct TemplateParser {
       case endForEach
       case end
       case log(Range<Int>)
+      case comment
    }
 
    static func parse(_ source: String, options: TemplateOptions) throws -> ParsedTemplate {
@@ -183,7 +198,12 @@ struct TemplateParser {
          try continueConditional(at: offset, tag: "elseif", nextCondition: compiled)
 
       case .else:
-         try continueConditional(at: offset, tag: "else", nextCondition: nil)
+         if case .loop = blocks[blocks.count - 1].kind {
+            try startLoopElse(at: offset)
+         }
+         else {
+            try continueConditional(at: offset, tag: "else", nextCondition: nil)
+         }
 
       case .endIf:
          try closeConditional(at: offset, tag: "endif")
@@ -204,6 +224,9 @@ struct TemplateParser {
 
       case .log(let expression):
          append(.log(try compile(expression)))
+
+      case .comment:
+         break
       }
 
       return true
@@ -214,6 +237,7 @@ struct TemplateParser {
    /// Identifies a tag by its keyword, ignoring case. Tags that take a
    /// statement in parentheses, like `if( this )`, come back with it.
    private func classify(_ content: Range<Int>) throws -> Tag {
+      if source.bytes[content.lowerBound] == UInt8(ascii: "#") { return .comment }
       if let statement = try call("if", in: content, bare: true) { return .if(statement) }
       if let statement = try call("elseif", in: content, bare: true) { return .elseIf(statement) }
       if let statement = try elseIf(in: content) { return .elseIf(statement) }
@@ -347,21 +371,37 @@ struct TemplateParser {
       blocks.append(Block(kind: .loop(slot: slot, sequence: sequence), offset: offset))
    }
 
+   /// `else` in a loop: what follows runs when there's nothing to loop over.
+   private mutating func startLoopElse(at offset: Int) throws {
+      guard blocks[blocks.count - 1].loopBody == nil else {
+         throw error("else after else", at: offset)
+      }
+      blocks[blocks.count - 1].loopBody = blocks[blocks.count - 1].nodes
+      blocks[blocks.count - 1].nodes = []
+      // The loop's variables have no value here.
+      locals.removeLast(2)
+   }
+
    private mutating func closeLoop(at offset: Int, tag: String) throws {
       guard case .loop(let slot, let sequence) = blocks[blocks.count - 1].kind else {
          throw error("\(tag) without a matching foreach", at: offset)
       }
       let block = blocks.removeLast()
-      locals.removeLast(2)
-      append(.loop(slot: slot, sequence: sequence, body: block.nodes))
+      if let body = block.loopBody {
+         append(.loop(slot: slot, sequence: sequence, body: body, otherwise: block.nodes))
+      }
+      else {
+         locals.removeLast(2)
+         append(.loop(slot: slot, sequence: sequence, body: block.nodes, otherwise: nil))
+      }
    }
 
    // MARK: Expressions
 
-   private func compile(_ range: Range<Int>) throws -> TagExpression {
+   private mutating func compile(_ range: Range<Int>) throws -> TagExpression {
       let expression = source.text(range)
       do {
-         return try compileExpression(expression, locals)
+         return TagExpression(kind: try compileExpression(expression, locals), line: line(at: range.lowerBound))
       }
       catch let problem as ExpressionError {
          throw error("\(problem.message) in '\(expression)'", at: range.lowerBound + problem.offset)
@@ -369,6 +409,18 @@ struct TemplateParser {
       catch {
          throw self.error("\(error) in '\(expression)'", at: range.lowerBound)
       }
+   }
+
+   private mutating func line(at offset: Int) -> Int {
+      if offset < lineOffset {
+         line = 1
+         lineOffset = 0
+      }
+      for index in lineOffset..<offset where source.bytes[index] == UInt8(ascii: "\n") {
+         line += 1
+      }
+      lineOffset = offset
+      return line
    }
 
    private func error(_ message: String, at offset: Int) -> TemplateError {
