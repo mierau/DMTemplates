@@ -1,4 +1,4 @@
-// DMTemplates
+// StringCheese
 // Dustin Mierau
 // Cared for under the MIT license.
 

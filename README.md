@@ -1,25 +1,27 @@
-# DMTemplates
-[![Test](https://github.com/mierau/DMTemplates/actions/workflows/test.yml/badge.svg)](https://github.com/mierau/DMTemplates/actions/workflows/test.yml)
+# StringCheese
+[![Test](https://github.com/mierau/string-cheese/actions/workflows/test.yml/badge.svg)](https://github.com/mierau/string-cheese/actions/workflows/test.yml)
 
 A small Swift templating engine with enough features for the cases developers commonly face: values, conditions, loops, functions and logging.
 
 A template is parsed once into an immutable, `Sendable` value, with every tag's expression compiled up front. Rendering is a pure function of the template and a context, so one template can render on many threads at once. It runs anywhere Swift 6 does, including Linux.
 
 ## Installation
-Add DMTemplates to your `Package.swift`:
+Add StringCheese to your `Package.swift`:
 
     dependencies: [
-       .package(url: "https://github.com/mierau/DMTemplates", from: "2.0.0"),
+       .package(url: "https://github.com/mierau/string-cheese", from: "3.0.0"),
     ],
 
-Then add `"DMTemplates"` to your target's dependencies. In Xcode, choose File › Add Package Dependencies and enter the same URL.
+Then add `"StringCheese"` to your target's dependencies. In Xcode, choose File › Add Package Dependencies and enter the same URL.
 
-DMTemplates needs Swift 6 and runs on macOS 13, iOS 16, tvOS 16, watchOS 9, visionOS 1 and Linux.
+StringCheese needs Swift 6 and runs on macOS 13, iOS 16, tvOS 16, watchOS 9, visionOS 1 and Linux.
+
+StringCheese was called DMTemplates through 2.x. To move to 3.0, point the dependency at the URL above, depend on the `StringCheese` product, and change `import DMTemplates` to `import StringCheese`. Nothing else in the API changed.
 
 ## Use
 Create a template and render it against a context:
 
-    import DMTemplates
+    import StringCheese
 
     let template = try Template("Hello, my name is {% firstName %}.")
     let rendered = template.render(["firstName": "Dustin"])
@@ -263,4 +265,4 @@ Expressions are compiled through the `ExpressionCompiler` protocol, and `Templat
 `Benchmarks/run.sh` measures parsing and rendering the templates in `Benchmarks/Fixtures`, including rendering one template from every core at once.
 
 ## License
-DMTemplates is available under the MIT license. See [LICENSE](LICENSE).
+StringCheese is available under the MIT license. See [LICENSE](LICENSE).

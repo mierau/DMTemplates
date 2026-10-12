@@ -1,4 +1,4 @@
-// DMTemplates
+// StringCheese
 // Dustin Mierau
 // Cared for under the MIT license.
 //
@@ -6,7 +6,7 @@
 // Measures each fixture (<name>.tmpl rendered against <name>.json) and writes
 // one rendering per fixture to the output directory for comparison.
 
-import DMTemplates
+import StringCheese
 import Foundation
 
 let arguments = CommandLine.arguments
