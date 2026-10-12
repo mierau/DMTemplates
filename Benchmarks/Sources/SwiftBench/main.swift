@@ -94,6 +94,12 @@ for name in names {
    let both = measure { (try? Template(source))?.render(context).utf8.count ?? 0 }
    line(name, "parse + render", both.microseconds, "")
    
+   // A Foundation object, as an app gets from JSONSerialization or a
+   // property list, converted on every render.
+   let object = try JSONSerialization.jsonObject(with: contextData)
+   let objectRender = measure { template.render(object: object).utf8.count }
+   line(name, "render(object:)", objectRender.microseconds, "")
+
    let concurrent = await measureConcurrent(template, contextData)
    line(name, "render, all cores", concurrent.microseconds, "(\(concurrent.tasks) tasks sharing one template, wall time / renders)")
 }

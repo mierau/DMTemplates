@@ -25,6 +25,8 @@ final class Program: @unchecked Sendable {
       /// through when done.
       case next(slot: Int32, body: Int32)
       case log(ExpressionRef)
+      /// Stores the expression's value in a variable's slot.
+      case set(ExpressionRef, slot: Int32)
    }
 
    /// Where an instruction's expression lives.
@@ -73,9 +75,14 @@ final class Program: @unchecked Sendable {
       var index: Int
    }
 
+   /// Renders into `output`.
+   func run(_ context: TemplateValue, features: RenderFeatures, into output: inout [UInt8]) {
+      run(context, features: features, into: &output, flushingAt: .max) { _ in }
+   }
+
    /// Renders into `output`. When `output` reaches `limit` bytes, `flush` is
    /// called to take what's there, so long output can stream.
-   func run(_ context: TemplateValue, features: RenderFeatures, into output: inout [UInt8], flushingAt limit: Int = .max, _ flush: (inout [UInt8]) -> Void = { _ in }) {
+   func run(_ context: TemplateValue, features: RenderFeatures, into output: inout [UInt8], flushingAt limit: Int, _ flush: (inout [UInt8]) throws -> Void) rethrows {
       let interpreter = code.interpreter
       var scope = ExpressionScope(root: context, features: features, localCount: localCount)
       let missingKeys = features.contains(.strict) ? MissingKeys() : nil
@@ -102,12 +109,12 @@ final class Program: @unchecked Sendable {
          switch instructions[pc] {
          case .text(let span):
             output.append(contentsOf: UnsafeBufferPointer(rebasing: text[span.range]))
-            if output.count >= limit { flush(&output) }
+            if output.count >= limit { try flush(&output) }
             pc += 1
 
          case .value(let expression, let raw):
             write(evaluate(expression), raw: raw, to: &output)
-            if output.count >= limit { flush(&output) }
+            if output.count >= limit { try flush(&output) }
             pc += 1
 
          case .branch(let condition, let otherwise):
@@ -118,7 +125,7 @@ final class Program: @unchecked Sendable {
 
          case .loop(let sequence, let slot, let exit):
             let items: [TemplateValue]
-            switch evaluate(sequence) {
+            switch evaluate(sequence).resolved {
             case .array(let elements):
                items = elements
             case .dictionary(let entries):
@@ -131,8 +138,11 @@ final class Program: @unchecked Sendable {
                pc = Int(exit)
                break
             }
-            scope.locals[Int(slot)] = items[0]
-            scope.locals[Int(slot) + 1] = .int(0)
+            let slot = Int(slot)
+            scope.locals[slot] = items[0]
+            scope.locals[slot + 1] = .int(0)
+            scope.locals[slot + 2] = .bool(true)
+            scope.locals[slot + 3] = .bool(items.count == 1)
             loops.append(Loop(items: items, index: 0))
             pc += 1
 
@@ -141,8 +151,11 @@ final class Program: @unchecked Sendable {
             loops[current].index += 1
             let index = loops[current].index
             if index < loops[current].items.count {
-               scope.locals[Int(slot)] = loops[current].items[index]
-               scope.locals[Int(slot) + 1] = .int(index)
+               let slot = Int(slot)
+               scope.locals[slot] = loops[current].items[index]
+               scope.locals[slot + 1] = .int(index)
+               scope.locals[slot + 2] = .bool(false)
+               scope.locals[slot + 3] = .bool(index == loops[current].items.count - 1)
                pc = Int(body)
             }
             else {
@@ -155,6 +168,10 @@ final class Program: @unchecked Sendable {
                let value = evaluate(expression)
                log(value == .null ? "nil" : value.renderedString)
             }
+            pc += 1
+
+         case .set(let expression, let slot):
+            scope.locals[Int(slot)] = evaluate(expression)
             pc += 1
          }
       }
@@ -285,6 +302,9 @@ final class Program: @unchecked Sendable {
 
          case .log(let expression):
             emit(.log(add(expression)), line: expression.line)
+
+         case .set(let slot, let expression):
+            emit(.set(add(expression), slot: Int32(slot)), line: expression.line)
          }
       }
 

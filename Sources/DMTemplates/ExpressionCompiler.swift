@@ -5,10 +5,12 @@
 /// Turns the source of a tag's expression into something that can be evaluated
 /// repeatedly. Templates call this once per tag, when the template is parsed.
 ///
-/// `locals` lists the loop variables visible at the tag, indexed by slot. A
-/// compiler resolves names against it at compile time and reads them at render
-/// time through `ExpressionScope.local(_:)`; names not in `locals` are looked up
-/// on the root context.
+/// `locals` names the variables (loop variables and ones made by `set`)
+/// visible at the tag, indexed by slot; slots of variables out of scope have
+/// an empty name. A compiler resolves names against it at compile time,
+/// taking the last slot with a name, and reads them at render time through
+/// `ExpressionScope.local(_:)`; names not in `locals` are looked up on the
+/// root context.
 public protocol ExpressionCompiler: Sendable {
    func compile(_ source: String, locals: [String]) throws -> any CompiledExpression
 }
@@ -26,7 +28,7 @@ public struct ExpressionScope: Sendable {
    /// The optional features this render turned on.
    public let features: RenderFeatures
 
-   /// Loop variables, by slot.
+   /// Variables, by slot.
    var locals: [TemplateValue]
 
    init(root: TemplateValue, features: RenderFeatures, localCount: Int) {
@@ -35,7 +37,7 @@ public struct ExpressionScope: Sendable {
       self.locals = Array(repeating: .null, count: localCount)
    }
 
-   /// The value of the loop variable in `slot`, as numbered by the `locals`
+   /// The value of the variable in `slot`, as numbered by the `locals`
    /// passed to `ExpressionCompiler.compile(_:locals:)`.
    public func local(_ slot: Int) -> TemplateValue {
       locals[slot]
@@ -66,6 +68,7 @@ public struct ExpressionError: Error, Sendable, CustomStringConvertible {
 ///   (a regular expression), with `[c]`, `[d]` or `[cd]` to ignore case or
 ///   diacritics.
 /// - Logic: `AND OR NOT`, or `&& || !`.
+/// - Conditionals: `condition ? then : otherwise`.
 /// - Literals: strings, numbers, `true`/`false`/`YES`/`NO`, `nil`, and arrays
 ///   written `{1, 2}` or `[1, 2]`.
 /// - Calls to `functions`: `name.prefix(3)`, `name | prefix(3)` and

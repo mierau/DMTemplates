@@ -24,6 +24,7 @@ A context is a ``TemplateValue``, which you can write as a literal, as above, ma
 - <doc:FunctionsAndFormatting>
 - ``Template``
 - ``TemplateValue``
+- ``TemplateObject``
 - ``TemplateError``
 
 ### Rendering

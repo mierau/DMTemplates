@@ -26,9 +26,21 @@ Templates support `if`, `elseif` and `else`, closed by `endif`. `else if` and a 
 
 A control tag swallows the line break that follows it, so tags on lines of their own don't leave blank lines behind.
 
+## Whitespace
+
+A `-` just inside a tag's delimiter trims the whitespace on that side of the tag, line breaks included: `{%-` before the tag and `-%}` after it. Write a negative number at the start of a tag with a space before it, as in `{% -1 %}`.
+
+```
+<ul>
+  {%- foreach item in items -%}
+  <li>{% item %}</li>
+  {%- endforeach -%}
+</ul>
+```
+
 ## Loops
 
-A `foreach` loop runs over an array from a key path, an expression or an inline array. The current index is the loop variable's name followed by `Index`.
+A `foreach` loop runs over an array from a key path, an expression or an inline array. The current index is the loop variable's name followed by `Index`, and whether it's the first or last element is the name followed by `IsFirst` and `IsLast`.
 
 ```
 {% foreach contact in person.contacts %}
@@ -36,6 +48,8 @@ A `foreach` loop runs over an array from a key path, an expression or an inline 
 {% endforeach %}
 
 {% foreach(name in {"Dustin", "Mary Ann", "Ollie"}) %}{% name %} {% end %}
+
+{% foreach name in names %}{% if !nameIsFirst %}{% nameIsLast ? " and " : ", " %}{% endif %}{% name %}{% end %}
 ```
 
 An `else` inside a loop runs when there's nothing to loop over. A loop over a dictionary gets each entry as `key` and `value`, in key order.
@@ -48,6 +62,16 @@ An `else` inside a loop runs when there's nothing to loop over. A loop over a di
 {% endforeach %}
 ```
 
+## Variables
+
+A `set` tag stores a value under a name for the tags after it. A variable hides a context key of the same name, and setting one that's already set changes it, so a loop can add to a total set before it. A variable first set inside a loop is gone after the loop; one set inside an `if` stays in scope after it.
+
+```
+{% set total = 0 %}
+{% foreach item in order.items %}{% set total = total + item.price * item.quantity %}{% endforeach %}
+Total: {% total | currency %}
+```
+
 ## Expressions
 
 Value tags, conditions and loops take expressions, written in a syntax modeled on NSPredicate's:
@@ -57,6 +81,7 @@ Value tags, conditions and loops take expressions, written in a syntax modeled o
 - Arithmetic: `+ - * / %`. `+` also joins text, as in `"Hi " + person.name`, whenever either side is text that isn't a number.
 - Comparisons: `== = != <> < <= > >=`, `BETWEEN`, `IN`, `CONTAINS`, `BEGINSWITH`, `ENDSWITH`, `LIKE` and `MATCHES`, with `[c]`, `[d]` or `[cd]` to ignore case or diacritics.
 - Logic: `AND`, `OR` and `NOT`, or `&&`, `||` and `!`.
+- Conditionals: `condition ? then : otherwise`, as in `done ? "✓" : "–"`. Only the side the condition picks is evaluated.
 - Literals: strings, numbers, `true`/`false`/`YES`/`NO`, `nil`, and arrays written `{1, 2}` or `[1, 2]`.
 - Function calls: `name.uppercase()`, `name | prefix(3)` or `prefix(name, 3)`. See <doc:FunctionsAndFormatting>.
 

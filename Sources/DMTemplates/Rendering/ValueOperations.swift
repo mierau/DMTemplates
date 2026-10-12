@@ -19,6 +19,8 @@ extension TemplateValue {
          return items[key] ?? .null
       case .array(let items):
          return .array(items.map { $0.member(key) })
+      case .object(let object):
+         return object.value(forKey: key) ?? .null
       default:
          return .null
       }
@@ -32,6 +34,7 @@ extension TemplateValue {
       case .null: return true
       case .dictionary(let items): return items[key] != nil
       case .array(let items): return items.allSatisfy { $0.hasMember(key) }
+      case .object(let object): return object.value(forKey: key) != nil
       default: return false
       }
    }
@@ -52,7 +55,7 @@ extension TemplateValue {
             return .null
          }
          return .string(String(text[position]))
-      case (.dictionary, _):
+      case (.dictionary, _), (.object, _):
          return member(index.renderedString)
       default:
          return .null
@@ -63,6 +66,7 @@ extension TemplateValue {
       switch self {
       case .array(let items): items.first ?? .null
       case .string(let text): text.first.map { .string(String($0)) } ?? .null
+      case .object(let object): object.templateValue.firstElement
       default: .null
       }
    }
@@ -71,6 +75,7 @@ extension TemplateValue {
       switch self {
       case .array(let items): items.last ?? .null
       case .string(let text): text.last.map { .string(String($0)) } ?? .null
+      case .object(let object): object.templateValue.lastElement
       default: .null
       }
    }
@@ -81,6 +86,7 @@ extension TemplateValue {
       case .array(let items): return .int(items.count)
       case .dictionary(let items): return .int(items.count)
       case .string(let text): return .int(text.count)
+      case .object(let object): return object.templateValue.elementCount
       default: return .null
       }
    }
@@ -234,6 +240,8 @@ extension ArithmeticOperator {
 
 extension ComparisonOperator {
    func apply(_ lhs: TemplateValue, _ rhs: TemplateValue, options: StringOptions) -> Bool {
+      let lhs = lhs.resolved
+      let rhs = rhs.resolved
       switch self {
       case .equal:
          return valuesEqual(lhs, rhs, options)
@@ -290,6 +298,8 @@ extension ComparisonOperator {
 /// as dates; otherwise both must read as numbers. Nil when the values can't be
 /// ordered.
 func compareValues(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options: StringOptions) -> Int? {
+   let lhs = lhs.resolved
+   let rhs = rhs.resolved
    switch (lhs, rhs) {
    case (.string(let a), .string(let b)):
       let x = fold(a, options)
@@ -319,6 +329,8 @@ func compareValues(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options: String
 }
 
 func valuesEqual(_ lhs: TemplateValue, _ rhs: TemplateValue, _ options: StringOptions) -> Bool {
+   let lhs = lhs.resolved
+   let rhs = rhs.resolved
    switch (lhs, rhs) {
    case (.null, .null):
       return true

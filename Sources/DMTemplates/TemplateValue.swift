@@ -22,6 +22,9 @@ public enum TemplateValue: Sendable, Hashable {
    case date(Date)
    case array([TemplateValue])
    case dictionary([String: TemplateValue])
+   /// A value read one key at a time, as the template asks for them. See
+   /// `TemplateObject`.
+   indirect case object(any TemplateObject)
 }
 
 // MARK: - Conversion
@@ -29,7 +32,9 @@ public enum TemplateValue: Sendable, Hashable {
 extension TemplateValue {
    /// Converts Foundation and Swift values (dictionaries, arrays, strings,
    /// numbers, dates, NSNull, property list objects, JSON objects) into a
-   /// template value. Anything unrecognized renders as its description.
+   /// template value. A `TemplateObject` stays one, and so does an `NSObject`
+   /// on Apple platforms, read through its `@objc` properties. Anything
+   /// else unrecognized renders as its description.
    public init(any value: Any?) {
       guard let value else {
          self = .null
@@ -87,9 +92,29 @@ extension TemplateValue {
       else if let v = value as? any BinaryFloatingPoint {
          self = .double(Double(v))
       }
+      else if let v = value as? any TemplateObject {
+         self = .object(v)
+      }
+      else if let v = Self.keyValueObject(value) {
+         self = .object(v)
+      }
       else {
          self = .string(String(describing: value))
       }
+   }
+
+   /// An `NSObject` to read through KVC, on Apple platforms. Collections and
+   /// Swift values bridged to Objective-C aren't.
+   private static func keyValueObject(_ value: Any) -> (any TemplateObject)? {
+      #if canImport(ObjectiveC)
+      guard type(of: value) is NSObject.Type, let object = value as? NSObject,
+            !(object is NSArray || object is NSDictionary || object is NSSet || object is NSOrderedSet || object is NSString) else {
+         return nil
+      }
+      return KeyValueObject(object: object)
+      #else
+      return nil
+      #endif
    }
 
    /// Converts any Encodable value (a struct, an array of structs), seeing it
@@ -152,6 +177,44 @@ extension TemplateValue: Codable {
       case .date(let v): try container.encode(v)
       case .array(let v): try container.encode(v)
       case .dictionary(let v): try container.encode(v)
+      case .object(let v): try container.encode(v.templateValue)
+      }
+   }
+}
+
+// MARK: - Equality
+
+extension TemplateValue {
+   /// Values of different kinds are never equal, so `.int(1)` isn't
+   /// `.double(1)`. Objects compare by their `templateValue`.
+   public static func == (lhs: TemplateValue, rhs: TemplateValue) -> Bool {
+      switch (lhs, rhs) {
+      case (.null, .null): return true
+      case (.bool(let a), .bool(let b)): return a == b
+      case (.int(let a), .int(let b)): return a == b
+      case (.double(let a), .double(let b)): return a == b
+      case (.decimal(let a), .decimal(let b)): return a == b
+      case (.string(let a), .string(let b)): return a == b
+      case (.date(let a), .date(let b)): return a == b
+      case (.array(let a), .array(let b)): return a == b
+      case (.dictionary(let a), .dictionary(let b)): return a == b
+      case (.object(let a), .object(let b)): return a.templateValue == b.templateValue
+      default: return false
+      }
+   }
+
+   public func hash(into hasher: inout Hasher) {
+      switch self {
+      case .null: hasher.combine(0)
+      case .bool(let v): hasher.combine(1); hasher.combine(v)
+      case .int(let v): hasher.combine(2); hasher.combine(v)
+      case .double(let v): hasher.combine(3); hasher.combine(v)
+      case .decimal(let v): hasher.combine(4); hasher.combine(v)
+      case .string(let v): hasher.combine(5); hasher.combine(v)
+      case .date(let v): hasher.combine(6); hasher.combine(v)
+      case .array(let v): hasher.combine(7); hasher.combine(v)
+      case .dictionary(let v): hasher.combine(8); hasher.combine(v)
+      case .object(let v): hasher.combine(9); hasher.combine(v.templateValue)
       }
    }
 }
@@ -198,6 +261,8 @@ extension TemplateValue {
          return v.map(\.renderedString).joined(separator: ", ")
       case .dictionary(let v):
          return "{" + v.keys.sorted().map { "\($0): \(v[$0]!.renderedString)" }.joined(separator: ", ") + "}"
+      case .object(let v):
+         return v.templateValue.renderedString
       }
    }
 
@@ -213,6 +278,7 @@ extension TemplateValue {
       case .date: return true
       case .array(let v): return !v.isEmpty
       case .dictionary(let v): return !v.isEmpty
+      case .object: return true
       }
    }
 

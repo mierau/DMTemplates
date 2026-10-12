@@ -1275,3 +1275,313 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(collector.messages.isEmpty)
    }
 }
+
+@Suite struct SetTests {
+   @Test func setsAVariable() throws {
+      #expect(try render("{% set total = price * 2 %}{% total %}", ["price": 3]) == "6")
+      #expect(try render("{% set name = \"Dustin\" %}Hi {% name | uppercase %}") == "Hi DUSTIN")
+   }
+
+   @Test func setTagsSwallowTheirNewline() throws {
+      #expect(try render("{% set x = 1 %}\n{% x %}") == "1")
+   }
+
+   @Test func aVariableHidesTheContextKey() throws {
+      #expect(try render("{% name %} {% set name = name + \"!\" %}{% name %}", ["name": "Hi"]) == "Hi Hi!")
+   }
+
+   @Test func aLoopCanAddToAVariableSetBeforeIt() throws {
+      let source = "{% set total = 0 %}{% foreach n in numbers %}{% set total = total + n %}{% end %}{% total %}"
+      #expect(try render(source, ["numbers": [1, 2, 3]]) == "6")
+   }
+
+   @Test func aVariableSetInALoopEndsWithIt() throws {
+      let source = "{% foreach n in numbers %}{% set doubled = n * 2 %}{% doubled %},{% end %}[{% doubled %}]"
+      #expect(try render(source, ["numbers": [1, 2], "doubled": "outside"]) == "2,4,[outside]")
+   }
+
+   @Test func aVariableSetInAConditionalStaysInScope() throws {
+      let source = "{% if big %}{% set size = \"L\" %}{% else %}{% set size = \"S\" %}{% endif %}{% size %}"
+      #expect(try render(source, ["big": true]) == "L")
+      #expect(try render(source, ["big": false]) == "S")
+   }
+
+   @Test func aVariableNotYetSetIsNil() throws {
+      #expect(try render("{% if false %}{% set x = 1 %}{% endif %}[{% x %}]") == "[]")
+   }
+
+   @Test func setIsntConfusedWithKeysNamedSet() throws {
+      #expect(try render("{% set %}{% settings %}", ["set": "a", "settings": "b"]) == "ab")
+   }
+
+   @Test func badSetTagsAreErrors() throws {
+      #expect(throws: TemplateError.self) { try Template("{% set x %}") }
+      #expect(throws: TemplateError.self) { try Template("{% set x = %}") }
+      #expect(throws: TemplateError.self) { try Template("{% set x == 1 %}") }
+      #expect(throws: TemplateError.self) { try Template("{% set 1x = 1 %}") }
+   }
+
+   @Test func customCompilersSeeVariables() throws {
+      struct Names: ExpressionCompiler {
+         struct Local: CompiledExpression {
+            let slot: Int
+            func evaluate(in scope: ExpressionScope) -> TemplateValue { scope.local(slot) }
+         }
+         func compile(_ source: String, locals: [String]) throws -> any CompiledExpression {
+            if let slot = locals.lastIndex(of: source) {
+               return Local(slot: slot)
+            }
+            return try NativeExpressionCompiler().compile(source, locals: locals)
+         }
+      }
+      var options = TemplateOptions()
+      options.expressionCompiler = Names()
+      #expect(try render("{% set x = 2 + 3 %}{% x %}", options: options) == "5")
+   }
+}
+
+@Suite struct LoopPositionTests {
+   @Test func knowsTheFirstAndLastElements() throws {
+      let source = "{% foreach n in names %}{% if !nIsFirst %}{% nIsLast ? \" and \" : \", \" %}{% endif %}{% n %}{% end %}"
+      #expect(try render(source, ["names": ["a", "b", "c"]]) == "a, b and c")
+      #expect(try render(source, ["names": ["a", "b"]]) == "a and b")
+      #expect(try render(source, ["names": ["a"]]) == "a")
+   }
+
+   @Test func nestedLoopsKeepTheirOwnPositions() throws {
+      let source = "{% foreach a in {1, 2} %}{% foreach b in {3, 4} %}{% aIsFirst %}/{% bIsLast %} {% end %}{% end %}"
+      #expect(try render(source) == "true/false true/true false/false false/true ")
+   }
+}
+
+@Suite struct ConditionalExpressionTests {
+   @Test func picksASide() throws {
+      #expect(try render("{% done ? \"✓\" : \"–\" %}", ["done": true]) == "✓")
+      #expect(try render("{% done ? \"✓\" : \"–\" %}", ["done": false]) == "–")
+      #expect(try render("{% count > 1 ? \"many\" : \"one\" %}", ["count": 3]) == "many")
+   }
+
+   @Test func nestsToTheRight() throws {
+      let source = "{% n < 0 ? \"negative\" : n == 0 ? \"zero\" : \"positive\" %}"
+      #expect(try render(source, ["n": -1]) == "negative")
+      #expect(try render(source, ["n": 0]) == "zero")
+      #expect(try render(source, ["n": 5]) == "positive")
+   }
+
+   @Test func worksInsideOtherExpressions() throws {
+      #expect(try render("{% (a ? 1 : 2) + 10 %}", ["a": false]) == "12")
+      #expect(try render("{% path(\"/\", admin ? \"admin\" : \"home\") %}", ["admin": true]) == "/admin")
+      #expect(try render("{% items[first ? 0 : 1] %}", ["items": ["x", "y"], "first": false]) == "y")
+      #expect(try render("{% set label = big ? \"L\" : \"S\" %}{% label %}", ["big": true]) == "L")
+   }
+
+   @Test func pipesBindToTheirSide() throws {
+      #expect(try render("{% a ? name | uppercase : \"none\" %}", ["a": true, "name": "x"]) == "X")
+   }
+
+   @Test func onlyThePickedSideIsCheckedInStrictMode() throws {
+      let collector = LogTests.Collector()
+      var options = TemplateOptions()
+      options.log = { collector.append($0) }
+      _ = try Template("{% person ? person.name : naem %}", options: options).render(["person": ["name": "D"]], features: [.log, .strict])
+      #expect(collector.messages.isEmpty)
+   }
+
+   @Test func missingPartsAreErrors() throws {
+      #expect(throws: TemplateError.self) { try Template("{% a ? b %}") }
+      #expect(throws: TemplateError.self) { try Template("{% a ? : b %}") }
+      #expect(throws: TemplateError.self) { try Template("{% a ? b : %}") }
+   }
+}
+
+@Suite struct TrimTests {
+   @Test func trimsWhitespaceBeforeAndAfter() throws {
+      #expect(try render("a  \n  {%- name -%}  \n  b", ["name": "X"]) == "aXb")
+      #expect(try render("a  {%- name %}  b", ["name": "X"]) == "aX  b")
+      #expect(try render("a  {% name -%}  b", ["name": "X"]) == "a  Xb")
+   }
+
+   @Test func trimsAroundControlTags() throws {
+      let source = "<ul>\n  {%- foreach n in items -%}\n  <li>{% n %}</li>\n  {%- end -%}\n</ul>"
+      #expect(try render(source, ["items": [1, 2]]) == "<ul><li>1</li><li>2</li></ul>")
+   }
+
+   @Test func trimsAroundCommentsAndSets() throws {
+      #expect(try render("a\n{%- # note -%}\nb") == "ab")
+      #expect(try render("a\n{%- set x = 1 -%}\n{% x %}") == "a1")
+   }
+
+   @Test func emptyTrimmingTags() throws {
+      #expect(try render("a {%-%} b {%--%} c") == "a bc")
+   }
+
+   @Test func trimsWithCustomDelimiters() throws {
+      var options = TemplateOptions()
+      options.beginDelimiter = "<<"
+      options.endDelimiter = ">>"
+      #expect(try render("a <<- name ->> b", ["name": "X"], options: options) == "aXb")
+   }
+
+   @Test func aSpacedMinusIsStillSubtraction() throws {
+      #expect(try render("{% -1 %} {% 3 - 1 %}") == "-1 2")
+   }
+}
+
+@Suite struct ByteRenderTests {
+   @Test func handsOverTheSameBytesInPieces() throws {
+      let template = try Template("{% foreach n in numbers %}Line {% n %}: {% name %} ✓\n{% end %}")
+      let context: TemplateValue = ["numbers": .array((0..<5000).map { .int($0) }), "name": "Dústin"]
+      var pieces: [[UInt8]] = []
+      template.render(context) { pieces.append($0) }
+      #expect(pieces.count > 1)
+      #expect(pieces.dropLast().allSatisfy { $0.count >= Template.chunkSize })
+      #expect(pieces.flatMap { $0 } == Array(template.render(context).utf8))
+   }
+
+   @Test func passesErrorsOn() throws {
+      struct Full: Error {}
+      let template = try Template("{% name %}")
+      #expect(throws: Full.self) {
+         try template.render(["name": "x"]) { _ in throw Full() }
+      }
+   }
+
+   @Test func writesNothingForEmptyOutput() throws {
+      var calls = 0
+      try Template("{% nothing %}").render([:]) { _ in calls += 1 }
+      #expect(calls == 0)
+   }
+}
+
+@Suite struct ObjectTests {
+   /// An object that notes which keys a template reads.
+   final class Recorder: TemplateObject, @unchecked Sendable {
+      let values: [String: TemplateValue]
+      private let lock = NSLock()
+      private var _reads: [String] = []
+
+      var reads: [String] {
+         lock.lock()
+         defer { lock.unlock() }
+         return _reads
+      }
+
+      init(_ values: [String: TemplateValue]) {
+         self.values = values
+      }
+
+      func value(forKey key: String) -> TemplateValue? {
+         lock.lock()
+         _reads.append(key)
+         lock.unlock()
+         return values[key]
+      }
+
+      var templateValue: TemplateValue { .dictionary(values) }
+   }
+
+   @Test func readsOnlyTheKeysTheTemplateAsksFor() throws {
+      let account = Recorder(["name": "Dustin", "orders": [1, 2, 3], "history": "long"])
+      let output = try Template("{% account.name %} has {% account.orders.@count %} orders").render(["account": .object(account)])
+      #expect(output == "Dustin has 3 orders")
+      #expect(account.reads == ["name", "orders"])
+   }
+
+   @Test func usesTheWholeValueWhereNeeded() throws {
+      let object = TemplateValue.object(Recorder(["b": 2, "a": 1]))
+      #expect(try render("{% foreach e in o %}{% e.key %}={% e.value %} {% end %}", ["o": object]) == "a=1 b=2 ")
+      #expect(try render("{% o %}|{% o | count %}|{% o.@count %}", ["o": object]) == "{a: 1, b: 2}|2|2")
+      #expect(try render("{% o[\"a\"] %}{% if o %}!{% endif %}", ["o": object]) == "1!")
+      #expect(object == .object(Recorder(["a": 1, "b": 2])))
+   }
+
+   @Test func objectsWithoutAWholeValueRenderTheirDescription() throws {
+      struct Point: TemplateObject, CustomStringConvertible {
+         var description: String { "(1, 2)" }
+         func value(forKey key: String) -> TemplateValue? { key == "x" ? 1 : key == "y" ? 2 : nil }
+      }
+      #expect(try render("{% p %} {% p.x + p.y %}", ["p": .object(Point())]) == "(1, 2) 3")
+      #expect(try Template("{% p.y %}").render(object: ["p": Point()]) == "2")
+   }
+
+   @Test func strictModeAsksTheObject() throws {
+      let collector = LogTests.Collector()
+      var options = TemplateOptions()
+      options.log = { collector.append($0) }
+      let object = TemplateValue.object(Recorder(["name": "D", "nickname": nil]))
+      _ = try Template("{% p.name %}{% p.nickname %}{% p.naem %}{% p[\"nmae\"] %}", options: options).render(["p": object], features: [.log, .strict])
+      #expect(collector.messages == ["line 1: no value for 'naem' in p.naem", "line 1: no value for 'nmae' in p[\"nmae\"]"])
+   }
+
+   @Test func listFunctionsReadObjectsInLists() throws {
+      let people: TemplateValue = [.object(Recorder(["name": "b", "admin": true])), .object(Recorder(["name": "a", "admin": true])), .object(Recorder(["name": "c"]))]
+      #expect(try render("{% people | where(\"admin\") | sort(\"name\") | first | default(\"\") %}", ["people": people]) == "{admin: true, name: a}")
+      #expect(try render("{% (people | sort(\"name\")).name | join(\",\") %}", ["people": people]) == "a,b,c")
+   }
+}
+
+@Suite struct KeyValueObjectTests {
+   @Test func objectsRenderConcurrently() async throws {
+      let template = try Template("{% foreach p in posts %}{% p.title %}{% end %}")
+      let context: TemplateValue = ["posts": .array((0..<200).map { .object(ObjectTests.Recorder(["title": .string("\($0)")])) })]
+      let expected = (0..<200).map(String.init).joined()
+      await withTaskGroup(of: String.self) { group in
+         for _ in 0..<8 {
+            group.addTask { template.render(context) }
+         }
+         for await output in group {
+            #expect(output == expected)
+         }
+      }
+   }
+
+   #if canImport(ObjectiveC)
+   final class Person: NSObject {
+      @objc let name: String
+      @objc let age: Int
+      @objc let friends: [Person]
+
+      init(name: String, age: Int, friends: [Person] = []) {
+         self.name = name
+         self.age = age
+         self.friends = friends
+      }
+
+      override var description: String { "Person \(name)" }
+   }
+
+   @Test func readsObjectsThroughTheirProperties() throws {
+      let person = Person(name: "Dustin", age: 40, friends: [Person(name: "Ollie", age: 9)])
+      let template = try Template("{% p.name %} {% p.age + 1 %} {% p.friends.name | join(\",\") %} {% p.friends.@avg.age %} [{% p.unknown %}] {% p %}")
+      #expect(template.render(object: ["p": person]) == "Dustin 41 Ollie 9 [] Person Dustin")
+      #expect(template.render(["p": TemplateValue(any: person)]) == "Dustin 41 Ollie 9 [] Person Dustin")
+   }
+   #endif
+}
+
+@Suite struct NewReadmeExampleTests {
+   @Test func variables() throws {
+      var options = TemplateOptions()
+      options.locale = Locale(identifier: "en_US")
+      options.currencyCode = "USD"
+      let order: TemplateValue = ["isGift": true, "items": [["price": 10, "quantity": 2], ["price": 5, "quantity": 1]]]
+      let source = """
+      {% set total = order.items.@sum.price %}
+      Subtotal: {% total | currency %}
+      With tax: {% (total * 1.08) | currency %}
+      {% set count = 0 %}
+      {% foreach item in order.items %}{% set count = count + item.quantity %}{% endforeach %}
+      {% count | pluralize("item") %}
+      {% if order.isGift %}{% set greeting = "Enjoy your gift" %}{% else %}{% set greeting = "Thanks for your order" %}{% endif %}
+      {% greeting %}
+      """
+      #expect(try render(source, ["order": order], options: options) == "Subtotal: $15.00\nWith tax: $16.20\n3 items\nEnjoy your gift")
+   }
+
+   @Test func whitespaceAndPositions() throws {
+      let list = "<ul>\n  {%- foreach item in items -%}\n  <li>{% item %}</li>\n  {%- endforeach -%}\n</ul>"
+      #expect(try render(list, ["items": ["a", "b"]]) == "<ul><li>a</li><li>b</li></ul>")
+      let names = "{% foreach name in names %}{% if !nameIsFirst %}{% nameIsLast ? \" and \" : \", \" %}{% endif %}{% name %}{% end %}"
+      #expect(try render(names, ["names": ["Dustin", "Mary Ann", "Ollie"]]) == "Dustin, Mary Ann and Ollie")
+   }
+}

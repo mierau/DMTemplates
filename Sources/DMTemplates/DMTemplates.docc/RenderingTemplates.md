@@ -18,6 +18,18 @@ Every value tag then escapes `&`, `<`, `>`, `"` and `'`. A value tag ending in `
 
 ``Template/render(_:features:into:)`` writes to any `TextOutputStream` in pieces as it goes, rather than building the whole result as one string, which keeps memory down for long output. Rendering into a `String` appends to it.
 
+``Template/render(_:features:bytes:)`` hands over the UTF-8 bytes in pieces instead, for servers and files that take bytes, with no `String` in between.
+
+```swift
+try template.render(context) { bytes in
+   try handle.write(contentsOf: bytes)
+}
+```
+
+## Objects
+
+A context is usually converted into ``TemplateValue``s before rendering. For values that are large or expensive to read, of which a template only uses a part, conform to ``TemplateObject`` and pass them as ``TemplateValue/object(_:)``; the template asks for each key as it needs it. On Apple platforms, ``Template/render(object:features:)`` reads other `NSObject`s, such as Core Data objects, the same way, through their `@objc` properties.
+
 ## Concurrency
 
 A ``Template`` is an immutable, `Sendable` value. Create it once, then render it from as many threads or tasks as you like; rendering touches no shared mutable state. Formatters are made the first time a template uses them and shared by every template with the same locale, time zone and currency.

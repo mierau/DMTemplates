@@ -38,7 +38,7 @@ private struct Token {
 /// Splits expression source into tokens.
 private struct Lexer {
    private static let pairs: Set<String> = ["==", "!=", "<>", "<=", ">=", "=<", "=>", "&&", "||"]
-   private static let singles: Set<UInt8> = Set("=<>!+-*/%()[]{},.|".utf8)
+   private static let singles: Set<UInt8> = Set("=<>!+-*/%()[]{},.|?:".utf8)
 
    private let bytes: [UInt8]
    private var position = 0
@@ -180,6 +180,7 @@ private struct Lexer {
 
 /// Recursive descent over the tokens, lowest precedence first:
 ///
+///     conditional    := or ("?" conditional ":" conditional)?
 ///     or             := and (("OR" | "||") and)*
 ///     and            := not (("AND" | "&&") not)*
 ///     not            := ("NOT" | "!") not | comparison
@@ -189,8 +190,8 @@ private struct Lexer {
 ///     unary          := ("-" | "+") unary | postfix
 ///     postfix        := primary ("." name | "." name call | "." @operator | "[" or "]" | "|" name call?)*
 ///     primary        := number | string | keyword | name | name call | @operator
-///                     | "(" or ")" | "{" list "}" | "[" list "]"
-///     call           := "(" (or ("," or)*)? ")"
+///                     | "(" conditional ")" | "{" list "}" | "[" list "]"
+///     call           := "(" (conditional ("," conditional)*)? ")"
 ///
 /// Calls name a registered function. `value.name(a, b)`, `value | name(a, b)`
 /// and `name(value, a, b)` all mean the same thing: call `name` with `value`
@@ -212,7 +213,7 @@ struct ExpressionParser {
       if case .end = current.kind {
          throw error("Expected an expression")
       }
-      let expr = try parseOr()
+      let expr = try parseConditional()
       if case .end = current.kind {
          return expr
       }
@@ -254,6 +255,19 @@ struct ExpressionParser {
          throw error("Expected '\(symbol)' but found \(describe(current))")
       }
       advance()
+   }
+
+   /// `condition ? then : otherwise`. Only the side the condition picks is
+   /// evaluated.
+   private mutating func parseConditional() throws -> Expr {
+      let condition = try parseOr()
+      guard isSymbol("?") else {
+         return condition
+      }
+      advance()
+      let then = try parseConditional()
+      try expect(":")
+      return .conditional(condition, then, try parseConditional())
    }
 
    private mutating func parseOr() throws -> Expr {
@@ -459,7 +473,7 @@ struct ExpressionParser {
                advance()
             }
             else {
-               steps.append(.index(try parseOr()))
+               steps.append(.index(try parseConditional()))
             }
             try expect("]")
          }
@@ -515,7 +529,7 @@ struct ExpressionParser {
 
       case .symbol("("):
          advance()
-         let inner = try parseOr()
+         let inner = try parseConditional()
          try expect(")")
          return inner
 
@@ -560,7 +574,7 @@ struct ExpressionParser {
          return elements
       }
       while true {
-         elements.append(try parseOr())
+         elements.append(try parseConditional())
          if isSymbol(",") {
             advance()
             continue
