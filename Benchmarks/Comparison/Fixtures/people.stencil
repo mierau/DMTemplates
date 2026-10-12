@@ -1,0 +1,6 @@
+<h1>{{ title|escape }}</h1>
+<ul>
+{% for person in people %}
+  <li>{{ person.name|escape }}, {{ person.city|escape }}{% if person.admin %} (admin){% endif %}</li>
+{% endfor %}
+</ul>

@@ -1,0 +1,505 @@
+{
+ "title": "Team <directory>",
+ "people": [
+  {
+   "name": "<Edsger Torvalds & Sons>",
+   "city": "Zürich",
+   "admin": true
+  },
+  {
+   "name": "Grace Hopper",
+   "city": "Montréal",
+   "admin": false
+  },
+  {
+   "name": "Dustin Liskov",
+   "city": "Seoul",
+   "admin": false
+  },
+  {
+   "name": "Grace Allen",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Grace Hopper",
+   "city": "Zürich",
+   "admin": true
+  },
+  {
+   "name": "Radia Hopper",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Linus Allen",
+   "city": "Zürich",
+   "admin": false
+  },
+  {
+   "name": "Grace Ritchie",
+   "city": "Seoul",
+   "admin": false
+  },
+  {
+   "name": "Dustin Hamilton",
+   "city": "Seoul",
+   "admin": true
+  },
+  {
+   "name": "Grace Knuth & Sons",
+   "city": "Seoul",
+   "admin": false
+  },
+  {
+   "name": "Donald Lovelace",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Grace Allen",
+   "city": "Oslo",
+   "admin": false
+  },
+  {
+   "name": "Ollie Turing",
+   "city": "Oslo",
+   "admin": true
+  },
+  {
+   "name": "<Dustin Knuth>",
+   "city": "São Paulo",
+   "admin": false
+  },
+  {
+   "name": "Ken Hopper",
+   "city": "Seoul",
+   "admin": false
+  },
+  {
+   "name": "Barbara Liskov",
+   "city": "Tokyo",
+   "admin": false
+  },
+  {
+   "name": "Linus Knuth",
+   "city": "Portland",
+   "admin": true
+  },
+  {
+   "name": "Barbara Dijkstra",
+   "city": "Montréal",
+   "admin": false
+  },
+  {
+   "name": "Radia Lamarr & Sons",
+   "city": "Perth",
+   "admin": false
+  },
+  {
+   "name": "John Knuth",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Frances Thompson",
+   "city": "Austin",
+   "admin": true
+  },
+  {
+   "name": "Ken Backus",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Linus Knuth",
+   "city": "São Paulo",
+   "admin": false
+  },
+  {
+   "name": "Hedy Liskov",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Ollie Knuth",
+   "city": "Tokyo",
+   "admin": true
+  },
+  {
+   "name": "Dustin Allen",
+   "city": "Zürich",
+   "admin": false
+  },
+  {
+   "name": "<Ken Lamarr>",
+   "city": "Perth",
+   "admin": false
+  },
+  {
+   "name": "Margaret Dijkstra & Sons",
+   "city": "Zürich",
+   "admin": false
+  },
+  {
+   "name": "Grace Perlman",
+   "city": "Tokyo",
+   "admin": true
+  },
+  {
+   "name": "Edsger Liskov",
+   "city": "Perth",
+   "admin": false
+  },
+  {
+   "name": "Hedy Knuth",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Linus Ritchie",
+   "city": "Tokyo",
+   "admin": false
+  },
+  {
+   "name": "Mary Ann Dijkstra",
+   "city": "Tokyo",
+   "admin": true
+  },
+  {
+   "name": "Grace Backus",
+   "city": "São Paulo",
+   "admin": false
+  },
+  {
+   "name": "John Thompson",
+   "city": "Zürich",
+   "admin": false
+  },
+  {
+   "name": "Frances Lovelace",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Frances Torvalds & Sons",
+   "city": "Seoul",
+   "admin": true
+  },
+  {
+   "name": "Dustin Dijkstra",
+   "city": "Portland",
+   "admin": false
+  },
+  {
+   "name": "Barbara Lamarr",
+   "city": "São Paulo",
+   "admin": false
+  },
+  {
+   "name": "<Margaret Backus>",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Donald Turing",
+   "city": "Lagos",
+   "admin": true
+  },
+  {
+   "name": "Linus Torvalds",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Donald Allen",
+   "city": "São Paulo",
+   "admin": false
+  },
+  {
+   "name": "Margaret Ritchie",
+   "city": "Zürich",
+   "admin": false
+  },
+  {
+   "name": "Mary Ann Backus",
+   "city": "Zürich",
+   "admin": true
+  },
+  {
+   "name": "Frances Perlman & Sons",
+   "city": "Zürich",
+   "admin": false
+  },
+  {
+   "name": "Alan Torvalds",
+   "city": "Tokyo",
+   "admin": false
+  },
+  {
+   "name": "Ken Torvalds",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Alan Lovelace",
+   "city": "Lagos",
+   "admin": true
+  },
+  {
+   "name": "Ken Thompson",
+   "city": "São Paulo",
+   "admin": false
+  },
+  {
+   "name": "Ada Torvalds",
+   "city": "Zürich",
+   "admin": false
+  },
+  {
+   "name": "Frances Knuth",
+   "city": "Seoul",
+   "admin": false
+  },
+  {
+   "name": "<Edsger Torvalds>",
+   "city": "Montréal",
+   "admin": true
+  },
+  {
+   "name": "Grace Dijkstra",
+   "city": "Montréal",
+   "admin": false
+  },
+  {
+   "name": "Donald Turing & Sons",
+   "city": "Zürich",
+   "admin": false
+  },
+  {
+   "name": "Donald Hopper",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Donald Lovelace",
+   "city": "Austin",
+   "admin": true
+  },
+  {
+   "name": "Linus Hamilton",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Ken Hopper",
+   "city": "Perth",
+   "admin": false
+  },
+  {
+   "name": "Grace Hopper",
+   "city": "Portland",
+   "admin": false
+  },
+  {
+   "name": "Margaret Allen",
+   "city": "Tokyo",
+   "admin": true
+  },
+  {
+   "name": "Frances Knuth",
+   "city": "Portland",
+   "admin": false
+  },
+  {
+   "name": "Linus Ritchie",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Donald Torvalds & Sons",
+   "city": "São Paulo",
+   "admin": false
+  },
+  {
+   "name": "Frances Knuth",
+   "city": "Perth",
+   "admin": true
+  },
+  {
+   "name": "<Hedy Hopper>",
+   "city": "Tokyo",
+   "admin": false
+  },
+  {
+   "name": "Hedy Dijkstra",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Hedy Thompson",
+   "city": "Tokyo",
+   "admin": false
+  },
+  {
+   "name": "Margaret Hopper",
+   "city": "Perth",
+   "admin": true
+  },
+  {
+   "name": "Mary Ann Dijkstra",
+   "city": "Oslo",
+   "admin": false
+  },
+  {
+   "name": "Ada Hamilton",
+   "city": "Montréal",
+   "admin": false
+  },
+  {
+   "name": "Frances Torvalds",
+   "city": "Montréal",
+   "admin": false
+  },
+  {
+   "name": "Ada Lamarr & Sons",
+   "city": "Montréal",
+   "admin": true
+  },
+  {
+   "name": "Ollie Perlman",
+   "city": "Tokyo",
+   "admin": false
+  },
+  {
+   "name": "Mary Ann Allen",
+   "city": "Perth",
+   "admin": false
+  },
+  {
+   "name": "Ken Liskov",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Edsger Perlman",
+   "city": "Austin",
+   "admin": true
+  },
+  {
+   "name": "Barbara Lamarr",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "<Donald Backus>",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Barbara Allen",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Frances Backus",
+   "city": "Portland",
+   "admin": true
+  },
+  {
+   "name": "Ada Lamarr & Sons",
+   "city": "São Paulo",
+   "admin": false
+  },
+  {
+   "name": "Hedy Thompson",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Frances Dijkstra",
+   "city": "Perth",
+   "admin": false
+  },
+  {
+   "name": "Frances Hopper",
+   "city": "Austin",
+   "admin": true
+  },
+  {
+   "name": "Dustin Hamilton",
+   "city": "Lagos",
+   "admin": false
+  },
+  {
+   "name": "Barbara Liskov",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "Hedy Knuth",
+   "city": "Seoul",
+   "admin": false
+  },
+  {
+   "name": "Ada Dijkstra",
+   "city": "Perth",
+   "admin": true
+  },
+  {
+   "name": "Linus Ritchie",
+   "city": "Tokyo",
+   "admin": false
+  },
+  {
+   "name": "Donald Lamarr & Sons",
+   "city": "Austin",
+   "admin": false
+  },
+  {
+   "name": "<Hedy Torvalds>",
+   "city": "Zürich",
+   "admin": false
+  },
+  {
+   "name": "Edsger Hopper",
+   "city": "Zürich",
+   "admin": true
+  },
+  {
+   "name": "John Turing",
+   "city": "Tokyo",
+   "admin": false
+  },
+  {
+   "name": "Ken Torvalds",
+   "city": "Oslo",
+   "admin": false
+  },
+  {
+   "name": "Ada Torvalds",
+   "city": "Seoul",
+   "admin": false
+  },
+  {
+   "name": "John Lamarr",
+   "city": "Oslo",
+   "admin": true
+  },
+  {
+   "name": "Hedy Perlman",
+   "city": "Perth",
+   "admin": false
+  },
+  {
+   "name": "Margaret Allen",
+   "city": "Montréal",
+   "admin": false
+  },
+  {
+   "name": "Margaret Lovelace & Sons",
+   "city": "Portland",
+   "admin": false
+  }
+ ]
+}

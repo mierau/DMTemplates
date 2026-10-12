@@ -1,0 +1,6 @@
+<h1>{% title %}</h1>
+<ul>
+{% foreach person in people %}
+  <li>{% person.name %}, {% person.city %}{% if person.admin %} (admin){% endif %}</li>
+{% endforeach %}
+</ul>
