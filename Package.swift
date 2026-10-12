@@ -1,18 +1,18 @@
 // swift-tools-version: 6.0
-// DMTemplates
+// StringCheese
 // Dustin Mierau
 // Cared for under the MIT license.
 
 import PackageDescription
 
 let package = Package(
-   name: "DMTemplates",
+   name: "string-cheese",
    platforms: [.macOS(.v13), .iOS(.v16), .tvOS(.v16), .watchOS(.v9), .visionOS(.v1)],
    products: [
-      .library(name: "DMTemplates", targets: ["DMTemplates"]),
+      .library(name: "StringCheese", targets: ["StringCheese"]),
    ],
    targets: [
-      .target(name: "DMTemplates"),
-      .testTarget(name: "DMTemplatesTests", dependencies: ["DMTemplates"]),
+      .target(name: "StringCheese"),
+      .testTarget(name: "StringCheeseTests", dependencies: ["StringCheese"]),
    ]
 )

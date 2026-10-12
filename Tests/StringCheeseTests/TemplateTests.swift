@@ -1,10 +1,10 @@
-// DMTemplates
+// StringCheese
 // Dustin Mierau
 // Cared for under the MIT license.
 
 import Foundation
 import Testing
-@testable import DMTemplates
+@testable import StringCheese
 
 private func render(_ source: String, _ context: TemplateValue = nil, options: TemplateOptions = TemplateOptions()) throws -> String {
    try Template(source, options: options).render(context)

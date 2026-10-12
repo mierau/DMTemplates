@@ -1,4 +1,4 @@
-# ``DMTemplates``
+# ``StringCheese``
 
 A small, fast templating engine for Swift 6.
 
@@ -7,7 +7,7 @@ A small, fast templating engine for Swift 6.
 A template is text with tags between `{%` and `%}`: values, conditions, loops and logging. Creating a ``Template`` parses it and compiles every tag's expression, and throws a ``TemplateError`` with a line and column for mistakes such as an unclosed `if`. Rendering is then a pure function of the template and a context, so one template can render on many threads at once.
 
 ```swift
-import DMTemplates
+import StringCheese
 
 let template = try Template("Hello, {% person.firstName %}. You have {% messages.@count | pluralize(\"message\") %}.")
 let text = template.render(["person": ["firstName": "Dustin"], "messages": [1, 2, 3]])
