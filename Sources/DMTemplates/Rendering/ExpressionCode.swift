@@ -29,6 +29,8 @@ final class ExpressionCode: @unchecked Sendable {
       case not(Int32)
       case and(Int32, Int32)
       case or(Int32, Int32)
+      /// `condition ? then : otherwise`.
+      case conditional(Int32, Int32, Int32)
       case arithmetic(ArithmeticOperator, Int32, Int32)
       case comparison(ComparisonOperator, StringOptions, Int32, Int32)
       /// MATCHES against a pattern compiled ahead of time, from `regexes`.
@@ -119,6 +121,10 @@ extension ExpressionCode {
          case .or(let lhs, let rhs):
             let l = add(lhs)
             return append(.or(l, add(rhs)))
+         case .conditional(let condition, let then, let otherwise):
+            let c = add(condition)
+            let t = add(then)
+            return append(.conditional(c, t, add(otherwise)))
          case .arithmetic(let op, let lhs, let rhs):
             let l = add(lhs)
             return append(.arithmetic(op, l, add(rhs)))
@@ -211,6 +217,9 @@ struct Interpreter {
       case .or(let lhs, let rhs):
          return .bool(evaluate(lhs, in: scope).isTruthy || evaluate(rhs, in: scope).isTruthy)
 
+      case .conditional(let condition, let then, let otherwise):
+         return evaluate(evaluate(condition, in: scope).isTruthy ? then : otherwise, in: scope)
+
       case .arithmetic(let op, let lhs, let rhs):
          return op.apply(evaluate(lhs, in: scope), evaluate(rhs, in: scope))
 
@@ -264,7 +273,8 @@ struct Interpreter {
    /// have to `missing`, for `RenderFeatures.strict`. It's a separate pass
    /// over the expression, so that rendering without strict mode pays
    /// nothing for it. Like `evaluate`, it skips the right side of `and` and
-   /// `or` when the left side decides.
+   /// `or` when the left side decides, and the side of a conditional that
+   /// isn't picked.
    func findMissingKeys(_ index: Int32, in scope: ExpressionScope, into missing: MissingKeys) {
       func find(_ index: Int32) {
          findMissingKeys(index, in: scope, into: missing)
@@ -285,6 +295,9 @@ struct Interpreter {
       case .or(let lhs, let rhs):
          find(lhs)
          if !evaluate(lhs, in: scope).isTruthy { find(rhs) }
+      case .conditional(let condition, let then, let otherwise):
+         find(condition)
+         find(evaluate(condition, in: scope).isTruthy ? then : otherwise)
       case .arithmetic(_, let lhs, let rhs), .comparison(_, _, let lhs, let rhs):
          find(lhs)
          find(rhs)

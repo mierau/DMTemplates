@@ -18,6 +18,8 @@ indirect enum Expr: Sendable {
    case not(Expr)
    case and(Expr, Expr)
    case or(Expr, Expr)
+   /// `condition ? then : otherwise`.
+   case conditional(Expr, Expr, Expr)
    case arithmetic(ArithmeticOperator, Expr, Expr)
    case comparison(ComparisonOperator, StringOptions, Expr, Expr)
    /// A call such as `receiver.name(arguments...)`, resolved to its function.

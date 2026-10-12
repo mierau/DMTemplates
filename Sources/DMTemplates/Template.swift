@@ -50,7 +50,25 @@ public struct Template: Sendable {
       }
    }
 
-   /// About how much `render(_:features:into:)` writes at a time.
+   /// Renders the template against `context`, handing `write` the result's
+   /// UTF-8 bytes in pieces as it goes. Servers and files that take bytes
+   /// can write them straight out, with no `String` in between:
+   ///
+   ///     try template.render(context) { bytes in
+   ///        try handle.write(contentsOf: bytes)
+   ///     }
+   public func render(_ context: TemplateValue, features: RenderFeatures = .default, bytes write: ([UInt8]) throws -> Void) rethrows {
+      var buffer: [UInt8] = []
+      try program.run(context, features: features, into: &buffer, flushingAt: Self.chunkSize) { bytes in
+         try write(bytes)
+         bytes.removeAll(keepingCapacity: true)
+      }
+      if !buffer.isEmpty {
+         try write(buffer)
+      }
+   }
+
+   /// About how much the streaming renders write at a time.
    static let chunkSize = 16 * 1024
 
    /// Renders the template against Foundation or Swift values, such as a

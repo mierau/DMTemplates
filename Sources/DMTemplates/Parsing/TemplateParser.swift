@@ -6,7 +6,7 @@
 struct ParsedTemplate {
    let nodes: [Node]
 
-   /// How many loop variable slots rendering needs.
+   /// How many variable slots rendering needs.
    let localCount: Int
 }
 
@@ -17,6 +17,8 @@ enum Node {
    /// `otherwise` runs when the sequence is empty.
    case loop(slot: Int, sequence: TagExpression, body: [Node], otherwise: [Node]?)
    case log(TagExpression)
+   /// `set name = value`: stores the value in a variable's slot.
+   case set(slot: Int, TagExpression)
 }
 
 /// An `if` or `elseif` and the nodes it guards.
@@ -55,9 +57,10 @@ struct TemplateParser {
    /// Blocks still open, innermost last. The first is the template itself.
    private var blocks: [Block] = [Block(kind: .root, offset: 0)]
 
-   /// Loop variables in scope, by slot.
+   /// Variable names by slot. Slots are never reused, so a variable's slot
+   /// starts out nil, and a variable that goes out of scope keeps its slot
+   /// with its name blanked, so it can't be found.
    private var locals: [String] = []
-   private var localCount = 0
 
    /// The line `lineOffset` is on. Tags are read in order, so finding a tag's
    /// line only counts the newlines since the last one.
@@ -74,6 +77,9 @@ struct TemplateParser {
       let kind: Kind
       /// Where the opening tag is, for errors about it.
       let offset: Int
+      /// Loops: the slots variables in scope had when the loop opened. Ones
+      /// added after go out of scope when the loop's body ends.
+      var scope = 0
       /// The nodes collected so far, for the branch being read.
       var nodes: [Node] = []
       /// Conditionals: finished `if` and `elseif` branches.
@@ -95,6 +101,7 @@ struct TemplateParser {
       case endForEach
       case end
       case log(Range<Int>)
+      case set(Range<Int>)
       case comment
    }
 
@@ -138,28 +145,50 @@ struct TemplateParser {
 
       var cursor = 0
       var swallowNewline = false
+      var trimNext = false
 
       while cursor < source.count {
          let tagStart = source.find(beginDelimiter, from: cursor) ?? source.count
+         var contentStart = tagStart + beginDelimiter.count
+         // `{%-` trims the whitespace before the tag, and `-%}` the
+         // whitespace after it, line breaks included.
+         let trimBefore = contentStart < source.count && source.bytes[contentStart] == UInt8(ascii: "-")
+         if trimBefore {
+            contentStart += 1
+         }
 
          var textStart = cursor
-         if swallowNewline {
+         var textEnd = tagStart
+         if trimNext {
+            while textStart < textEnd, source.bytes[textStart].isSpace {
+               textStart += 1
+            }
+         }
+         else if swallowNewline {
             // Control tags swallow the newline right after them, so a tag on
             // its own line doesn't leave a blank line behind.
             textStart = source.skippingNewline(at: textStart, before: tagStart)
          }
-         if textStart < tagStart {
-            appendText(source.text(textStart..<tagStart))
+         if trimBefore {
+            while textEnd > textStart, source.bytes[textEnd - 1].isSpace {
+               textEnd -= 1
+            }
+         }
+         if textStart < textEnd {
+            appendText(source.text(textStart..<textEnd))
          }
 
          guard tagStart < source.count else {
             break
          }
-         let contentStart = tagStart + beginDelimiter.count
-         guard let contentEnd = source.find(endDelimiter, from: contentStart) else {
+         guard var contentEnd = source.find(endDelimiter, from: contentStart) else {
             throw error("Tag is missing its closing \(String(decoding: endDelimiter, as: UTF8.self))", at: tagStart)
          }
          cursor = contentEnd + endDelimiter.count
+         trimNext = contentEnd > contentStart && source.bytes[contentEnd - 1] == UInt8(ascii: "-")
+         if trimNext {
+            contentEnd -= 1
+         }
          swallowNewline = try handleTag(contentStart..<contentEnd)
       }
 
@@ -171,7 +200,7 @@ struct TemplateParser {
          throw error("if is never closed", at: block.offset)
       }
 
-      return ParsedTemplate(nodes: blocks[0].nodes, localCount: localCount)
+      return ParsedTemplate(nodes: blocks[0].nodes, localCount: locals.count)
    }
 
    /// Handles one tag's content. Returns whether the tag swallows the newline
@@ -225,6 +254,9 @@ struct TemplateParser {
       case .log(let expression):
          append(.log(try compile(expression)))
 
+      case .set(let statement):
+         try set(statement, at: offset)
+
       case .comment:
          break
       }
@@ -247,6 +279,7 @@ struct TemplateParser {
       if isWord("end", content) { return .end }
       if let statement = try call("foreach", in: content, bare: true) { return .forEach(statement) }
       if let statement = try call("log", in: content) { return .log(statement) }
+      if let statement = keyword("set", in: content) { return .set(statement) }
       return .value(content)
    }
 
@@ -283,6 +316,16 @@ struct TemplateParser {
          throw error("Expected ) at the end of the tag", at: content.upperBound - 1)
       }
       return paren..<content.upperBound
+   }
+
+   /// If `content` is `name` followed by a space and more, what's after it.
+   private func keyword(_ name: String, in content: Range<Int>) -> Range<Int>? {
+      let end = content.lowerBound + name.utf8.count
+      guard end < content.upperBound, source.bytes[end].isSpace,
+            source.matches(name, at: content.lowerBound, before: content.upperBound) else {
+         return nil
+      }
+      return source.trimmed(end..<content.upperBound)
    }
 
    /// `else if( ... )`, the spelling the earlier Swift draft used.
@@ -349,8 +392,9 @@ struct TemplateParser {
       return block
    }
 
-   /// `foreach(item in items)`. The loop gets two slots: the item, and its
-   /// index as `itemIndex`.
+   /// `foreach(item in items)`. The loop gets four slots: the item, its
+   /// index as `itemIndex`, and whether it's the first or last as
+   /// `itemIsFirst` and `itemIsLast`.
    private mutating func openLoop(_ statement: Range<Int>, at offset: Int) throws {
       guard let separator = source.findWord("in", in: statement) else {
          throw error("foreach needs the form foreach(item in items)", at: offset)
@@ -364,11 +408,9 @@ struct TemplateParser {
       // The sequence is evaluated outside the loop, so compile it before the
       // loop's variables come into scope.
       let sequence = try compile(source.trimmed(separator.upperBound..<statement.upperBound))
-      let slot = locals.count
-      locals.append(name)
-      locals.append(name + "Index")
-      localCount = max(localCount, locals.count)
-      blocks.append(Block(kind: .loop(slot: slot, sequence: sequence), offset: offset))
+      let scope = locals.count
+      locals += [name, name + "Index", name + "IsFirst", name + "IsLast"]
+      blocks.append(Block(kind: .loop(slot: scope, sequence: sequence), offset: offset, scope: scope))
    }
 
    /// `else` in a loop: what follows runs when there's nothing to loop over.
@@ -379,7 +421,7 @@ struct TemplateParser {
       blocks[blocks.count - 1].loopBody = blocks[blocks.count - 1].nodes
       blocks[blocks.count - 1].nodes = []
       // The loop's variables have no value here.
-      locals.removeLast(2)
+      endScope(at: blocks[blocks.count - 1].scope)
    }
 
    private mutating func closeLoop(at offset: Int, tag: String) throws {
@@ -391,9 +433,52 @@ struct TemplateParser {
          append(.loop(slot: slot, sequence: sequence, body: body, otherwise: block.nodes))
       }
       else {
-         locals.removeLast(2)
+         endScope(at: block.scope)
          append(.loop(slot: slot, sequence: sequence, body: block.nodes, otherwise: nil))
       }
+   }
+
+   /// Hides the variables from `scope` on.
+   private mutating func endScope(at scope: Int) {
+      for slot in scope..<locals.count {
+         locals[slot] = ""
+      }
+   }
+
+   /// `set name = value`. A variable already in scope gets the new value, so
+   /// a loop can add to a total set before it; otherwise the name is new,
+   /// and in scope until the end of the loop it's set in, or of the template.
+   private mutating func set(_ statement: Range<Int>, at offset: Int) throws {
+      var nameEnd = statement.lowerBound
+      while nameEnd < statement.upperBound, source.bytes[nameEnd].isIdentifierPart {
+         nameEnd += 1
+      }
+      var equals = nameEnd
+      while equals < statement.upperBound, source.bytes[equals].isSpace {
+         equals += 1
+      }
+      guard nameEnd > statement.lowerBound, source.bytes[statement.lowerBound].isIdentifierStart,
+            equals < statement.upperBound, source.bytes[equals] == UInt8(ascii: "="),
+            equals + 1 == statement.upperBound || source.bytes[equals + 1] != UInt8(ascii: "=") else {
+         throw error("set needs the form set name = value", at: offset)
+      }
+      let value = source.trimmed((equals + 1)..<statement.upperBound)
+      guard !value.isEmpty else {
+         throw error("Expected a value after =", at: equals)
+      }
+      // Compiled before the name is in scope, so `set count = count + 1`
+      // starts from the context's `count`.
+      let expression = try compile(value)
+      let name = source.text(statement.lowerBound..<nameEnd)
+      let slot: Int
+      if let existing = locals.lastIndex(of: name) {
+         slot = existing
+      }
+      else {
+         slot = locals.count
+         locals.append(name)
+      }
+      append(.set(slot: slot, expression))
    }
 
    // MARK: Expressions
