@@ -6,6 +6,7 @@ import PackageDescription
 
 let package = Package(
    name: "StringCheeseBenchmarks",
+   platforms: [.macOS(.v13)],
    dependencies: [
       .package(name: "string-cheese", path: ".."),
    ],

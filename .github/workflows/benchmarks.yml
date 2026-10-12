@@ -1,0 +1,44 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Benchmarks/**"
+      - "Sources/**"
+      - ".github/workflows/benchmarks.yml"
+
+# shell: bash runs steps with pipefail, so a failed comparison fails the job.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Machine
+        run: |
+          swift --version
+          grep -m1 "model name" /proc/cpuinfo
+          nproc
+      - name: StringCheese
+        run: Benchmarks/run.sh 1
+      - name: Comparison
+        run: Benchmarks/Comparison/run.sh 2 | tee -a "$GITHUB_STEP_SUMMARY"
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Machine
+        run: |
+          swift --version
+          sysctl -n machdep.cpu.brand_string
+          sysctl -n hw.ncpu
+      - name: StringCheese
+        run: Benchmarks/run.sh 1
+      - name: Comparison
+        run: Benchmarks/Comparison/run.sh 2 | tee -a "$GITHUB_STEP_SUMMARY"

@@ -1,30 +1,70 @@
-# StringCheese
+# String Cheese
 [![Test](https://github.com/mierau/string-cheese/actions/workflows/test.yml/badge.svg)](https://github.com/mierau/string-cheese/actions/workflows/test.yml)
 
-A small Swift templating engine with enough features for the cases developers commonly face: values, conditions, loops, functions and logging.
+String Cheese is a small, fast templating engine for Swift. You write text with tags in it, such as an email, a web page, a Markdown report or a config file, and render it against your data. It has the features templates commonly need, values, conditions, loops, variables, functions, formatting and escaping, and no dependencies beyond Foundation.
 
-A template is parsed once into an immutable, `Sendable` value, with every tag's expression compiled up front. Rendering is a pure function of the template and a context, so one template can render on many threads at once. It runs anywhere Swift 6 does, including Linux.
+```jinja
+Hi {% customer.firstName %},
+
+{% foreach item in order.items %}
+{% itemIndex + 1 %}. {% item.name %}{% if item.quantity > 1 %} × {% item.quantity %}{% endif %} ... {% (item.price * item.quantity) | currency %}
+{% endforeach %}
+
+Total: {% order.total | currency %}{% if order.total >= 50 %} (free shipping){% endif %}
+```
+
+```swift
+import StringCheese
+
+let template = try Template(contentsOf: url)
+let email = try template.render(encoding: order)   // any Encodable value
+```
+
+```text
+Hi Mary Ann,
+
+1. Pour-over kettle ... $39.00
+2. Single-origin beans, 12 oz × 2 ... $33.00
+
+Total: $72.00 (free shipping)
+```
+
+## Why String Cheese
+* **Parse once, render many times.** A template is parsed into an immutable, `Sendable` value with every tag's expression compiled up front, so rendering does no parsing, and one template can render on many threads at once. In the [benchmarks](#benchmarks) it renders a page 4 to 84 times faster than Leaf, Mustache and Stencil.
+* **Mistakes show up early.** An unclosed `if`, a typo in an expression or a call to a function that doesn't exist throws a `TemplateError` with a line and column when the template is created, not halfway through a render.
+* **Expressions that go beyond lookups.** Arithmetic, comparisons, `AND`/`OR`, `? :`, pattern matching and collection operators like `@sum` and `@count`, in a syntax modeled on NSPredicate's.
+* **Built-in functions and formatting.** Text, list and number functions, pluralizing, and locale-aware dates, numbers and currency, plus your own functions.
+* **Renders what you already have.** `TemplateValue` literals, Foundation objects from JSON or property lists, any `Encodable` value, or your own objects read one key at a time.
+* **Any kind of text.** Templates don't assume HTML. Turn on HTML escaping when you want it, trim whitespace around tags, and change the delimiters.
+* **Runs everywhere Swift 6 does**, including Linux, with output written to a `String`, any `TextOutputStream` or straight to bytes.
+
+## Contents
+[Installation](#installation) · [Use](#use) · [Escaping](#escaping) · [Expressions](#expressions) · [Conditions](#conditions) · [Whitespace](#whitespace) · [Loops](#loops) · [Variables](#variables) · [Functions](#functions) · [Formatting](#formatting) · [Custom functions](#custom-functions) · [Logging](#logging) · [Comments](#comments) · [Objects](#objects) · [Custom expressions](#custom-expressions) · [Benchmarks](#benchmarks) · [License](#license)
 
 ## Installation
-Add StringCheese to your `Package.swift`:
+Add String Cheese to your `Package.swift`:
 
-    dependencies: [
-       .package(url: "https://github.com/mierau/string-cheese", from: "3.0.0"),
-    ],
+```swift
+dependencies: [
+   .package(url: "https://github.com/mierau/string-cheese", from: "3.0.0"),
+],
+```
 
 Then add `"StringCheese"` to your target's dependencies. In Xcode, choose File › Add Package Dependencies and enter the same URL.
 
-StringCheese needs Swift 6 and runs on macOS 13, iOS 16, tvOS 16, watchOS 9, visionOS 1 and Linux.
+String Cheese needs Swift 6 and runs on macOS 13, iOS 16, tvOS 16, watchOS 9, visionOS 1 and Linux.
 
-StringCheese was called DMTemplates through 2.x. To move to 3.0, point the dependency at the URL above, depend on the `StringCheese` product, and change `import DMTemplates` to `import StringCheese`. Nothing else in the API changed.
+String Cheese was called DMTemplates through 2.x. To move to 3.0, point the dependency at the URL above, depend on the `StringCheese` product, and change `import DMTemplates` to `import StringCheese`. Nothing else in the API changed.
 
 ## Use
 Create a template and render it against a context:
 
-    import StringCheese
+```swift
+import StringCheese
 
-    let template = try Template("Hello, my name is {% firstName %}.")
-    let rendered = template.render(["firstName": "Dustin"])
+let template = try Template("Hello, my name is {% firstName %}.")
+let rendered = template.render(["firstName": "Dustin"])
+```
 
 **Rendered**: Hello, my name is Dustin.
 
@@ -36,21 +76,27 @@ To load a template from a file, use `Template(contentsOf:)`. Tags are written be
 
 For long output, such as a large page or a file, `render(_:into:)` writes to any `TextOutputStream` in pieces as it goes, rather than building the whole result as one string first:
 
-    var page = ""
-    template.render(context, into: &page)
+```swift
+var page = ""
+template.render(context, into: &page)
+```
 
 Servers and files that take bytes can have the UTF-8 handed straight to them instead, with no `String` in between:
 
-    try template.render(context) { bytes in
-       try handle.write(contentsOf: bytes)
-    }
+```swift
+try template.render(context) { bytes in
+   try handle.write(contentsOf: bytes)
+}
+```
 
 ## Escaping
 Templates don't assume they're HTML, so values are written as they are unless you ask for escaping. For HTML or XML templates, turn it on with `TemplateOptions.escaping`:
 
-    var options = TemplateOptions()
-    options.escaping = .html
-    let page = try Template("<h1>{% post.title %}</h1>{% post.body | raw %}", options: options)
+```swift
+var options = TemplateOptions()
+options.escaping = .html
+let page = try Template("<h1>{% post.title %}</h1>{% post.body | raw %}", options: options)
+```
 
 Every value tag then escapes `&`, `<`, `>`, `"` and `'`. A value tag ending in `| raw` is written as it is, for HTML you trust, and one ending in `| escape` isn't escaped twice. Template text and `log` tags are never escaped. `Escaping { ... }` takes your own transform for other formats.
 
@@ -73,13 +119,15 @@ Value tags, conditions and loops all take expressions, written in a syntax model
 ## Conditions
 Templates support **if**, **elseif** and **else**, closed by **endif**. `else if` and a bare `end` work too.
 
-    {% if(person.contacts.@count == 0) %}
-      Please add some contacts.
-    {% elseif(person.contacts.@count < 3) %}
-      Add some more contacts.
-    {% else %}
-      You have enough contacts.
-    {% endif %}
+```jinja
+{% if(person.contacts.@count == 0) %}
+  Please add some contacts.
+{% elseif(person.contacts.@count < 3) %}
+  Add some more contacts.
+{% else %}
+  You have enough contacts.
+{% endif %}
+```
 
 The parentheses are optional, so `{% if count > 2 %}` and `{% foreach contact in person.contacts %}` work too.
 
@@ -88,11 +136,13 @@ A control tag swallows the line break that follows it, so tags on lines of their
 ## Whitespace
 A `-` just inside a tag's delimiter trims the whitespace on that side of the tag, line breaks included. `{%-` trims before the tag and `-%}` after it:
 
-    <ul>
-      {%- foreach item in items -%}
-      <li>{% item %}</li>
-      {%- endforeach -%}
-    </ul>
+```jinja
+<ul>
+  {%- foreach item in items -%}
+  <li>{% item %}</li>
+  {%- endforeach -%}
+</ul>
+```
 
 **Rendered**: `<ul><li>a</li><li>b</li></ul>`
 
@@ -101,71 +151,89 @@ Because `{%-` trims, write a negative number at the start of a tag with a space 
 ## Loops
 A **foreach** loop runs over an array, which can come from a key path, an expression or an inline array.
 
-    {% foreach(contact in person.contacts) %}
-      Contact name: {% contact.firstName %} {% contact.lastName %}
-    {% endforeach %}
+```jinja
+{% foreach(contact in person.contacts) %}
+  Contact name: {% contact.firstName %} {% contact.lastName %}
+{% endforeach %}
 
-    {% foreach(contactName in {"Dustin", "Mary Ann", "Ollie"}) %}
-      Contact: {% contactName %}
-    {% endforeach %}
+{% foreach(contactName in {"Dustin", "Mary Ann", "Ollie"}) %}
+  Contact: {% contactName %}
+{% endforeach %}
 
-    {% foreach(filename in files.name | lowercase) %}
-      Lowercase file name: {% filename %}
-    {% endforeach %}
+{% foreach(filename in files.name | lowercase) %}
+  Lowercase file name: {% filename %}
+{% endforeach %}
+```
 
 Inside a loop, the current index is available as the loop variable's name followed by `Index`, and whether it's the first or last element as the name followed by `IsFirst` and `IsLast`:
 
-    {% foreach(contact in person.contacts) %}
-      Contact {% contactIndex + 1 %}: {% contact.firstName %}
-    {% endforeach %}
+```jinja
+{% foreach(contact in person.contacts) %}
+  Contact {% contactIndex + 1 %}: {% contact.firstName %}
+{% endforeach %}
 
-    {% foreach name in names %}{% if !nameIsFirst %}{% nameIsLast ? " and " : ", " %}{% endif %}{% name %}{% end %}
+{% foreach name in names %}{% if !nameIsFirst %}{% nameIsLast ? " and " : ", " %}{% endif %}{% name %}{% end %}
+```
 
 **Rendered**: Dustin, Mary Ann and Ollie
 
 An **else** inside a loop runs when there's nothing to loop over:
 
-    {% foreach contact in person.contacts %}
-      {% contact.firstName %}
-    {% else %}
-      No contacts yet.
-    {% endforeach %}
+```jinja
+{% foreach contact in person.contacts %}
+  {% contact.firstName %}
+{% else %}
+  No contacts yet.
+{% endforeach %}
+```
 
 A loop over a dictionary gets each entry as `key` and `value`, in key order:
 
-    {% foreach price in prices %}
-      {% price.key %}: {% price.value | currency %}
-    {% endforeach %}
+```jinja
+{% foreach price in prices %}
+  {% price.key %}: {% price.value | currency %}
+{% endforeach %}
+```
 
 ## Variables
 A **set** tag stores a value under a name, for the tags after it to use:
 
-    {% set total = order.items.@sum.price %}
-    Subtotal: {% total | currency %}
-    With tax: {% (total * 1.08) | currency %}
+```jinja
+{% set total = order.items.@sum.price %}
+Subtotal: {% total | currency %}
+With tax: {% (total * 1.08) | currency %}
+```
 
 A variable hides a key of the same name in the context. Setting a variable that's already set changes it, so a loop can add to a total set before the loop:
 
-    {% set count = 0 %}
-    {% foreach item in order.items %}{% set count = count + item.quantity %}{% endforeach %}
-    {% count | pluralize("item") %}
+```jinja
+{% set count = 0 %}
+{% foreach item in order.items %}{% set count = count + item.quantity %}{% endforeach %}
+{% count | pluralize("item") %}
+```
 
 A variable first set inside a loop belongs to that loop and is gone after it. One set inside an `if` stays in scope after the `endif`, so a condition can pick it:
 
-    {% if order.isGift %}{% set greeting = "Enjoy your gift" %}{% else %}{% set greeting = "Thanks for your order" %}{% endif %}
+```jinja
+{% if order.isGift %}{% set greeting = "Enjoy your gift" %}{% else %}{% set greeting = "Thanks for your order" %}{% endif %}
+```
 
 ## Functions
 Functions transform a value before it's shown. Pass a value through them with a pipe, or call them the way you'd call a method in Swift. These all mean the same thing:
 
-    {% person.firstName | prefix(1) | uppercase %}
-    {% person.firstName.prefix(1).uppercase() %}
-    {% uppercase(prefix(person.firstName, 1)) %}
+```jinja
+{% person.firstName | prefix(1) | uppercase %}
+{% person.firstName.prefix(1).uppercase() %}
+{% uppercase(prefix(person.firstName, 1)) %}
+```
 
 Pipes apply left to right and need no parentheses when there are no arguments. A pipe binds as tightly as `.`, so it works inside conditions, and parentheses pipe a whole expression:
 
-    {% person.bio | trim | escape %}
-    {% if(post.title | lowercase BEGINSWITH "draft") %}(unpublished){% endif %}
-    {% (item.price * item.quantity) | currency %}
+```jinja
+{% person.bio | trim | escape %}
+{% if(post.title | lowercase BEGINSWITH "draft") %}(unpublished){% endif %}
+{% (item.price * item.quantity) | currency %}
+```
 
 The standard functions are:
 
@@ -182,9 +250,11 @@ Text functions applied to a list apply to each element, so `files.name | lowerca
 ## Formatting
 Formatting functions show dates and numbers for people:
 
-    Posted {% post.date | date %} at {% post.date | time %}
-    Updated {% post.updated | relative %}
-    Total: {% order.total | currency %}
+```jinja
+Posted {% post.date | date %} at {% post.date | time %}
+Updated {% post.updated | relative %}
+Total: {% order.total | currency %}
+```
 
 They are:
 
@@ -195,64 +265,82 @@ They are:
 
 For anything else, use `format` with a date pattern like `"MMM d, yyyy"` or a number pattern like `"#,##0.00"`, written the way DateFormatter and NumberFormatter take them.
 
-    {% post.date | format("EEEE, MMMM d") %}
-    {% item.weight | format("0.0") %} kg
+```jinja
+{% post.date | format("EEEE, MMMM d") %}
+{% item.weight | format("0.0") %} kg
+```
 
 Formats follow `TemplateOptions.locale`, `timeZone` and `currencyCode`, which default to the current locale, the current time zone and the locale's currency:
 
-    var options = TemplateOptions()
-    options.locale = Locale(identifier: "fr_FR")
-    options.currencyCode = "EUR"
+```swift
+var options = TemplateOptions()
+options.locale = Locale(identifier: "fr_FR")
+options.currencyCode = "EUR"
+```
 
 Dates can be `Date` values, ISO 8601 strings such as `"2025-10-09T08:53:20Z"` or `"2025-10-09"`, or numbers of seconds since 1970, so dates in JSON work too. They also compare with `<`, `>` and the rest, and work with `@min` and `@max`. A value a format doesn't fit, such as a name formatted as a date, passes through unchanged.
 
 ## Custom functions
 Register your own in `TemplateOptions.functions`. `Functions.text` makes one from a transform of text:
 
-    var options = TemplateOptions()
-    options.functions["shout"] = Functions.text { $0.uppercased() + "!" }
+```swift
+var options = TemplateOptions()
+options.functions["shout"] = Functions.text { $0.uppercased() + "!" }
+```
 
 A full function gets the value it's called on and its arguments:
 
-    options.functions["initials"] = { receiver, _ in
-       .string(receiver.renderedString.split(separator: " ").compactMap(\.first).map(String.init).joined())
-    }
+```swift
+options.functions["initials"] = { receiver, _ in
+   .string(receiver.renderedString.split(separator: " ").compactMap(\.first).map(String.init).joined())
+}
+```
 
-    {% person.name | shout %} {% person.name | initials %}
+```jinja
+{% person.name | shout %} {% person.name | initials %}
+```
 
 Any name works, even one like `function` or `all`, and a function you register replaces a standard one with the same name. Calling a function that isn't registered is an error when the template is created.
 
 ## Logging
 To help debug a template, a **log** tag writes an expression's value to `TemplateOptions.log`, which prints to standard error by default. Log tags render nothing, and a render can switch them off by leaving `.log` out of its features.
 
-    {% log(person.firstName) %}
+```jinja
+{% log(person.firstName) %}
+```
 
 A misspelled key renders as nothing. To find typos like that, render with the `.strict` feature, which reports every key a tag asks for that the context doesn't have, with its line, to `TemplateOptions.log`. A key that's there with a `nil` value isn't reported.
 
-    template.render(context, features: [.log, .strict])
-    // line 3: no value for 'naem' in person.naem
+```swift
+template.render(context, features: [.log, .strict])
+// line 3: no value for 'naem' in person.naem
+```
 
 ## Comments
 A tag starting with `#` is a comment and renders nothing.
 
-    {%# Shown on the account page. %}
+```jinja
+{%# Shown on the account page. %}
+```
 
 ## Objects
 Rendering usually starts by converting the whole context into `TemplateValue`s. For values that are large or expensive to read, of which a template only uses a part, such as model objects backed by a database, conform to `TemplateObject` instead. The template then asks for each key as it needs it:
 
-    struct Account: TemplateObject {
-       let id: Int
+```swift
+struct Account: TemplateObject {
+   let id: Int
 
-       func value(forKey key: String) -> TemplateValue? {
-          switch key {
-          case "name": return .string(database.name(of: id))
-          case "orders": return .array(database.orders(of: id).map { .object($0) })
-          default: return nil
-          }
-       }
-    }
+   func value(forKey key: String) -> TemplateValue? {
+      switch key {
+      case "name": return .string(database.name(of: id))
+      case "orders": return .array(database.orders(of: id).map { .object($0) })
+      default: return nil
+      }
+   }
+}
 
-    template.render(["account": .object(Account(id: 7))])
+template.render(["account": .object(Account(id: 7))])
+```
 
 Return nil for a key the object doesn't have, which strict mode reports, and `.null` for one that's there with no value. Where a template uses the object as one value, such as writing it out, looping over it or passing it to a function, it uses the object's `templateValue`, which defaults to its description.
 
@@ -262,7 +350,42 @@ On Apple platforms, `render(object:)` reads any other `NSObject`, such as a Core
 Expressions are compiled through the `ExpressionCompiler` protocol, and `TemplateOptions.expressionCompiler` can replace the built-in `NativeExpressionCompiler` with your own.
 
 ## Benchmarks
-`Benchmarks/run.sh` measures parsing and rendering the templates in `Benchmarks/Fixtures`, including rendering one template from every core at once.
+String Cheese parses a template once and compiles its expressions, so a render only walks the compiled template and reads the context. To see what that buys, the benchmarks render the same page with String Cheese and three other Swift template engines: [Stencil](https://github.com/stencilproject/Stencil), [Mustache](https://github.com/hummingbird-project/swift-mustache) (Hummingbird's) and [Leaf](https://github.com/vapor/leaf-kit) (Vapor's LeafKit).
+
+The page is a heading and a list of 100 people, each with a name, a city and an `(admin)` marker shown by a condition. Every engine escapes HTML, and the benchmark checks that each one's output matches String Cheese's, ignoring whitespace, before timing it. Each engine has its own copy of the template, in [`Benchmarks/Comparison/Fixtures`](Benchmarks/Comparison/Fixtures).
+
+**Render, parsed once** (microseconds per render, lower is better)
+
+| Engine | Linux | macOS |
+|---|--:|--:|
+| **String Cheese** | **52 µs** | **136 µs** |
+| String Cheese, `render(object:)` | 136 µs (2.6× slower) | 232 µs (1.7× slower) |
+| Leaf 1.14 | 592 µs (11× slower) | 551 µs (4.1× slower) |
+| Mustache 2.1 | 772 µs (15× slower) | 672 µs (4.9× slower) |
+| Stencil 0.15 | 4,398 µs (84× slower) | 2,400 µs (18× slower) |
+
+**Parse and render** (microseconds per render, lower is better)
+
+| Engine | Linux | macOS |
+|---|--:|--:|
+| **String Cheese** | **65 µs** | **164 µs** |
+| String Cheese, `render(object:)` | 152 µs (2.3× slower) | 270 µs (1.6× slower) |
+| Leaf 1.14 | 654 µs (10× slower) | 667 µs (4.1× slower) |
+| Mustache 2.1 | 801 µs (12× slower) | 780 µs (4.8× slower) |
+| Stencil 0.15 | 4,476 µs (68× slower) | 2,175 µs (13× slower) |
+
+Measured on October 12, 2026 in [this run](https://github.com/mierau/string-cheese/actions/runs/38298931683) of the Benchmarks workflow, on GitHub's hosted runners: Linux is `ubuntu-latest` (AMD EPYC 7763, 4 cores) with Swift 6.2.4, and macOS is `macos-15` (Apple M1, virtual, 3 cores) with Swift 6.1.2. Release builds, 2 seconds per measurement.
+
+**Render, parsed once** is the usual case for an app or server: the template is created once and rendered for each request. **Parse and render** creates the template every time. A few things to know when reading them:
+
+* String Cheese renders from a `TemplateValue` decoded from JSON once up front. Its `render(object:)` row renders from the same dictionary of Swift values Stencil and Mustache get, converting it on every render. Leaf gets its own `LeafData` values, built once up front.
+* Stencil tokenizes a template when it's created but parses it on every render, so its two rows are close.
+* Leaf renders through SwiftNIO futures. The benchmark runs them on an embedded event loop with the template in memory, so no time goes to threads or files. Parse and render turns Leaf's template cache off.
+* These are shared GitHub Actions machines, so expect some noise from run to run. Compare engines within a row rather than across runs.
+
+To run the comparison yourself, run `Benchmarks/Comparison/run.sh`, which takes the number of seconds to spend on each measurement, 1 by default (CI uses 2). It needs network access the first time to fetch the other engines. The [Benchmarks workflow](.github/workflows/benchmarks.yml) runs it on Linux and macOS for every pull request that touches the library or the benchmarks, and puts the table in the run's summary; you can also start it by hand from the Actions tab.
+
+`Benchmarks/run.sh` measures String Cheese alone on the templates in [`Benchmarks/Fixtures`](Benchmarks/Fixtures): parsing, rendering, rendering from Foundation objects, and rendering one template from every core at once. It has no dependencies, so it's the one to run while working on the engine.
 
 ## License
-StringCheese is available under the MIT license. See [LICENSE](LICENSE).
+String Cheese is available under the MIT license. See [LICENSE](LICENSE).
