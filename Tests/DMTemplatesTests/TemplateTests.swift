@@ -1452,3 +1452,109 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
       #expect(calls == 0)
    }
 }
+
+@Suite struct ObjectTests {
+   /// An object that notes which keys a template reads.
+   final class Recorder: TemplateObject, @unchecked Sendable {
+      let values: [String: TemplateValue]
+      private let lock = NSLock()
+      private var _reads: [String] = []
+
+      var reads: [String] {
+         lock.lock()
+         defer { lock.unlock() }
+         return _reads
+      }
+
+      init(_ values: [String: TemplateValue]) {
+         self.values = values
+      }
+
+      func value(forKey key: String) -> TemplateValue? {
+         lock.lock()
+         _reads.append(key)
+         lock.unlock()
+         return values[key]
+      }
+
+      var templateValue: TemplateValue { .dictionary(values) }
+   }
+
+   @Test func readsOnlyTheKeysTheTemplateAsksFor() throws {
+      let account = Recorder(["name": "Dustin", "orders": [1, 2, 3], "history": "long"])
+      let output = try Template("{% account.name %} has {% account.orders.@count %} orders").render(["account": .object(account)])
+      #expect(output == "Dustin has 3 orders")
+      #expect(account.reads == ["name", "orders"])
+   }
+
+   @Test func usesTheWholeValueWhereNeeded() throws {
+      let object = TemplateValue.object(Recorder(["b": 2, "a": 1]))
+      #expect(try render("{% foreach e in o %}{% e.key %}={% e.value %} {% end %}", ["o": object]) == "a=1 b=2 ")
+      #expect(try render("{% o %}|{% o | count %}|{% o.@count %}", ["o": object]) == "{a: 1, b: 2}|2|2")
+      #expect(try render("{% o[\"a\"] %}{% if o %}!{% endif %}", ["o": object]) == "1!")
+      #expect(object == .object(Recorder(["a": 1, "b": 2])))
+   }
+
+   @Test func objectsWithoutAWholeValueRenderTheirDescription() throws {
+      struct Point: TemplateObject, CustomStringConvertible {
+         var description: String { "(1, 2)" }
+         func value(forKey key: String) -> TemplateValue? { key == "x" ? 1 : key == "y" ? 2 : nil }
+      }
+      #expect(try render("{% p %} {% p.x + p.y %}", ["p": .object(Point())]) == "(1, 2) 3")
+      #expect(try Template("{% p.y %}").render(object: ["p": Point()]) == "2")
+   }
+
+   @Test func strictModeAsksTheObject() throws {
+      let collector = LogTests.Collector()
+      var options = TemplateOptions()
+      options.log = { collector.append($0) }
+      let object = TemplateValue.object(Recorder(["name": "D", "nickname": nil]))
+      _ = try Template("{% p.name %}{% p.nickname %}{% p.naem %}{% p[\"nmae\"] %}", options: options).render(["p": object], features: [.log, .strict])
+      #expect(collector.messages == ["line 1: no value for 'naem' in p.naem", "line 1: no value for 'nmae' in p[\"nmae\"]"])
+   }
+
+   @Test func listFunctionsReadObjectsInLists() throws {
+      let people: TemplateValue = [.object(Recorder(["name": "b", "admin": true])), .object(Recorder(["name": "a", "admin": true])), .object(Recorder(["name": "c"]))]
+      #expect(try render("{% people | where(\"admin\") | sort(\"name\") | first | default(\"\") %}", ["people": people]) == "{admin: true, name: a}")
+      #expect(try render("{% (people | sort(\"name\")).name | join(\",\") %}", ["people": people]) == "a,b,c")
+   }
+}
+
+@Suite struct KeyValueObjectTests {
+   @Test func objectsRenderConcurrently() async throws {
+      let template = try Template("{% foreach p in posts %}{% p.title %}{% end %}")
+      let context: TemplateValue = ["posts": .array((0..<200).map { .object(ObjectTests.Recorder(["title": .string("\($0)")])) })]
+      let expected = (0..<200).map(String.init).joined()
+      await withTaskGroup(of: String.self) { group in
+         for _ in 0..<8 {
+            group.addTask { template.render(context) }
+         }
+         for await output in group {
+            #expect(output == expected)
+         }
+      }
+   }
+
+   #if canImport(ObjectiveC)
+   final class Person: NSObject {
+      @objc let name: String
+      @objc let age: Int
+      @objc let friends: [Person]
+
+      init(name: String, age: Int, friends: [Person] = []) {
+         self.name = name
+         self.age = age
+         self.friends = friends
+      }
+
+      override var description: String { "Person \(name)" }
+   }
+
+   @Test func readsObjectsThroughTheirProperties() throws {
+      let person = Person(name: "Dustin", age: 40, friends: [Person(name: "Ollie", age: 9)])
+      let template = try Template("{% p.name %} {% p.age + 1 %} {% p.friends.name | join(\",\") %} {% p.friends.@avg.age %} [{% p.unknown %}] {% p %}")
+      #expect(template.render(object: ["p": person]) == "Dustin 41 Ollie 9 [] Person Dustin")
+      #expect(template.render(["p": TemplateValue(any: person)]) == "Dustin 41 Ollie 9 [] Person Dustin")
+   }
+   #endif
+}

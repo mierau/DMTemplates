@@ -125,7 +125,7 @@ final class Program: @unchecked Sendable {
 
          case .loop(let sequence, let slot, let exit):
             let items: [TemplateValue]
-            switch evaluate(sequence) {
+            switch evaluate(sequence).resolved {
             case .array(let elements):
                items = elements
             case .dictionary(let entries):

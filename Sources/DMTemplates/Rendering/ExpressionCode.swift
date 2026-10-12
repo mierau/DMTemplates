@@ -231,10 +231,11 @@ struct Interpreter {
 
       case .function(let function, let span):
          // The receiver comes first. Most calls have no arguments, and mapping
-         // an empty range allocates nothing.
+         // an empty range allocates nothing. Functions get objects as whole
+         // values.
          let slots = span.range
-         let receiver = evaluate(operands[slots.lowerBound], in: scope)
-         let arguments = slots.dropFirst().map { evaluate(operands[$0], in: scope) }
+         let receiver = evaluate(operands[slots.lowerBound], in: scope).resolved
+         let arguments = slots.dropFirst().map { evaluate(operands[$0], in: scope).resolved }
          return functions[Int(function)](receiver, arguments)
       }
    }
@@ -322,8 +323,13 @@ struct Interpreter {
          case .index(let operation):
             findMissingKeys(operation, in: scope, into: missing)
             let position = evaluate(operation, in: scope)
-            if case .dictionary(let items) = value, items[position.renderedString] == nil {
-               return missing.add(key: position.renderedString, path: describe(base, start...index, in: scope))
+            switch value {
+            case .dictionary, .object:
+               guard value.hasMember(position.renderedString) else {
+                  return missing.add(key: position.renderedString, path: describe(base, start...index, in: scope))
+               }
+            default:
+               break
             }
             value = value.element(at: position)
          case .first:

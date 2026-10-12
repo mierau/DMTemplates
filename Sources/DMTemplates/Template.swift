@@ -72,7 +72,9 @@ public struct Template: Sendable {
    static let chunkSize = 16 * 1024
 
    /// Renders the template against Foundation or Swift values, such as a
-   /// dictionary read from a property list or JSON.
+   /// dictionary read from a property list or JSON. A `TemplateObject`, or
+   /// on Apple platforms an `NSObject`, is read one key at a time as the
+   /// template asks for them.
    public func render(object: Any?, features: RenderFeatures = .default) -> String {
       render(TemplateValue(any: object), features: features)
    }
