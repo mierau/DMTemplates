@@ -30,7 +30,7 @@ Total: $72.00 (free shipping)
 ```
 
 ## Why String Cheese
-* **Parse once, render many times.** A template is parsed into an immutable, `Sendable` value with every tag's expression compiled up front, so rendering does no parsing. One template can render on many threads at once. See [Benchmarks](#benchmarks) for how that compares with other Swift engines.
+* **Parse once, render many times.** A template is parsed into an immutable, `Sendable` value with every tag's expression compiled up front, so rendering does no parsing, and one template can render on many threads at once. In the [benchmarks](#benchmarks) it renders a page 4 to 84 times faster than Leaf, Mustache and Stencil.
 * **Mistakes show up early.** An unclosed `if`, a typo in an expression or a call to a function that doesn't exist throws a `TemplateError` with a line and column when the template is created, not halfway through a render.
 * **Expressions that go beyond lookups.** Arithmetic, comparisons, `AND`/`OR`, `? :`, pattern matching and collection operators like `@sum` and `@count`, in a syntax modeled on NSPredicate's.
 * **Built-in functions and formatting.** Text, list and number functions, pluralizing, and locale-aware dates, numbers and currency, plus your own functions.
@@ -354,9 +354,29 @@ String Cheese parses a template once and compiles its expressions, so a render o
 
 The page is a heading and a list of 100 people, each with a name, a city and an `(admin)` marker shown by a condition. Every engine escapes HTML, and the benchmark checks that each one's output matches String Cheese's, ignoring whitespace, before timing it. Each engine has its own copy of the template, in [`Benchmarks/Comparison/Fixtures`](Benchmarks/Comparison/Fixtures).
 
-BENCHMARK_RESULTS
+**Render, parsed once** (microseconds per render, lower is better)
 
-**Render, parsed once** is the usual case for an app or server: the template is created once and rendered for each request. **Parse and render** creates the template every time. Lower is better, and the multiple compares each engine with String Cheese. A few things to know when reading them:
+| Engine | Linux | macOS |
+|---|--:|--:|
+| **String Cheese** | **52 µs** | **136 µs** |
+| String Cheese, `render(object:)` | 136 µs (2.6× slower) | 232 µs (1.7× slower) |
+| Leaf 1.14 | 592 µs (11× slower) | 551 µs (4.1× slower) |
+| Mustache 2.1 | 772 µs (15× slower) | 672 µs (4.9× slower) |
+| Stencil 0.15 | 4,398 µs (84× slower) | 2,400 µs (18× slower) |
+
+**Parse and render** (microseconds per render, lower is better)
+
+| Engine | Linux | macOS |
+|---|--:|--:|
+| **String Cheese** | **65 µs** | **164 µs** |
+| String Cheese, `render(object:)` | 152 µs (2.3× slower) | 270 µs (1.6× slower) |
+| Leaf 1.14 | 654 µs (10× slower) | 667 µs (4.1× slower) |
+| Mustache 2.1 | 801 µs (12× slower) | 780 µs (4.8× slower) |
+| Stencil 0.15 | 4,476 µs (68× slower) | 2,175 µs (13× slower) |
+
+Measured on October 12, 2026 in [this run](https://github.com/mierau/string-cheese/actions/runs/38298931683) of the Benchmarks workflow, on GitHub's hosted runners: Linux is `ubuntu-latest` (AMD EPYC 7763, 4 cores) with Swift 6.2.4, and macOS is `macos-15` (Apple M1, virtual, 3 cores) with Swift 6.1.2. Release builds, 2 seconds per measurement.
+
+**Render, parsed once** is the usual case for an app or server: the template is created once and rendered for each request. **Parse and render** creates the template every time. A few things to know when reading them:
 
 * String Cheese renders from a `TemplateValue` decoded from JSON once up front. Its `render(object:)` row renders from the same dictionary of Swift values Stencil and Mustache get, converting it on every render. Leaf gets its own `LeafData` values, built once up front.
 * Stencil tokenizes a template when it's created but parses it on every render, so its two rows are close.
