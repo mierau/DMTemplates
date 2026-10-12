@@ -1558,3 +1558,30 @@ private func render(_ source: String, _ context: TemplateValue = nil, options: T
    }
    #endif
 }
+
+@Suite struct NewReadmeExampleTests {
+   @Test func variables() throws {
+      var options = TemplateOptions()
+      options.locale = Locale(identifier: "en_US")
+      options.currencyCode = "USD"
+      let order: TemplateValue = ["isGift": true, "items": [["price": 10, "quantity": 2], ["price": 5, "quantity": 1]]]
+      let source = """
+      {% set total = order.items.@sum.price %}
+      Subtotal: {% total | currency %}
+      With tax: {% (total * 1.08) | currency %}
+      {% set count = 0 %}
+      {% foreach item in order.items %}{% set count = count + item.quantity %}{% endforeach %}
+      {% count | pluralize("item") %}
+      {% if order.isGift %}{% set greeting = "Enjoy your gift" %}{% else %}{% set greeting = "Thanks for your order" %}{% endif %}
+      {% greeting %}
+      """
+      #expect(try render(source, ["order": order], options: options) == "Subtotal: $15.00\nWith tax: $16.20\n3 items\nEnjoy your gift")
+   }
+
+   @Test func whitespaceAndPositions() throws {
+      let list = "<ul>\n  {%- foreach item in items -%}\n  <li>{% item %}</li>\n  {%- endforeach -%}\n</ul>"
+      #expect(try render(list, ["items": ["a", "b"]]) == "<ul><li>a</li><li>b</li></ul>")
+      let names = "{% foreach name in names %}{% if !nameIsFirst %}{% nameIsLast ? \" and \" : \", \" %}{% endif %}{% name %}{% end %}"
+      #expect(try render(names, ["names": ["Dustin", "Mary Ann", "Ollie"]]) == "Dustin, Mary Ann and Ollie")
+   }
+}
